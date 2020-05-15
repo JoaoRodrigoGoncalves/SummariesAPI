@@ -2,8 +2,6 @@
 header('Content-type: application/json; charset=utf-8');
 $response['status'] = false;
 $response['errors'] = "";
-$response['contents'] = null;
-
 if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	require("../connection.php");
 
@@ -21,7 +19,7 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	}
 
 	try {
-		if(!isset($_POST['API'])){
+		if((!isset($_POST['API'])) || (!isset($_POST['name']))){
 			throw new Exception("Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)");
 		}
 
@@ -31,43 +29,37 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 		$APIcheck = mysqli_query($connection, $queryAPI);
 		if($APIcheck){
 			if(mysqli_num_rows($APIcheck) == 1){
+				
+				$name = base64_decode($_POST['name']);
+				$name = mysqli_real_escape_string($connection, $name);
 
-				$query = "SELECT workspaces.*, (SELECT COUNT(*) FROM summaries WHERE summaries.workspace=workspaces.id) AS totalSummaries FROM workspaces";
-				$run = mysqli_query($connection, $query);
-				if($run){
-					$response['status'] = true;
-					if(mysqli_num_rows($run) > 0){
-						$i = 0;
-						while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-							$response['contents'][$i]['id'] = $row['id'];
-							$response['contents'][$i]['name'] = $row['name'];
-							if($row['read'] == 1){
-								$response['contents'][$i]['read'] = true;
-							}else{
-								$response['contents'][$i]['read'] = false;
-							}
-							if($row['write'] == 1){
-								$response['contents'][$i]['write'] = true;
-							}else{
-								$response['contents'][$i]['write'] = false;
-							}
-							$response['contents'][$i]['totalSummaries'] = $row['totalSummaries'];
-							$i++;
-						}
+				if(isset($_POST['classID'])){
+					$classID = mysqli_real_escape_string($connection, $_POST['classID']);
+					$query = "UPDATE classesList SET name='$name' WHERE id='$classID'";
+					$result = mysqli_query($connection, $query);
+					if(!$result){
+						$response['errors'] = mysqli_error($connection);
+					}else{
+						$response['status'] = true;
 					}
 				}else{
-					$response['status'] = false;
-					$response['errors'] = "Error: " . mysqli_error($connection);
+					$query = "INSERT INTO classesList (name) VALUES ('$name')";
+					$result = mysqli_query($connection, $query);
+					if($result){
+						$response['status'] = true;
+					}else{
+						$response['status'] = false;
+						$response['errors'] = "" . mysqli_error($connection) . " \n" . $query;
+					}
 				}
-
 			}else{
 				$response['status'] = false;
-				$response['errors'] = "Invalid Key";
+				$response['errors'] = "Invalid key";
 			}
 		}else{
 			$response['status'] = false;
 			$response['errors'] = mysqli_error($connection);
-		}		
+		}
 	} catch (Exception $e) {
 		$response['status'] = false;
 		$response['errors'] = "Error: " . $e->getMessage();

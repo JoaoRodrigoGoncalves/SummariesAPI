@@ -2,7 +2,6 @@
 header('Content-type: application/json; charset=utf-8');
 $response['status'] = false;
 $response['errors'] = "";
-$response['contents'] = null;
 
 if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	require("../connection.php");
@@ -21,7 +20,7 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	}
 
 	try {
-		if(!isset($_POST['API'])){
+		if((!isset($_POST['API'])) || (!isset($_POST['workspaceID']))){
 			throw new Exception("Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)");
 		}
 
@@ -32,28 +31,14 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 		if($APIcheck){
 			if(mysqli_num_rows($APIcheck) == 1){
 
-				$query = "SELECT workspaces.*, (SELECT COUNT(*) FROM summaries WHERE summaries.workspace=workspaces.id) AS totalSummaries FROM workspaces";
+				$workspaceID = mysqli_real_escape_string($connection, $_POST['workspaceID']);
+				$query = "DELETE FROM workspaces WHERE id=$workspaceID";
 				$run = mysqli_query($connection, $query);
 				if($run){
-					$response['status'] = true;
-					if(mysqli_num_rows($run) > 0){
-						$i = 0;
-						while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-							$response['contents'][$i]['id'] = $row['id'];
-							$response['contents'][$i]['name'] = $row['name'];
-							if($row['read'] == 1){
-								$response['contents'][$i]['read'] = true;
-							}else{
-								$response['contents'][$i]['read'] = false;
-							}
-							if($row['write'] == 1){
-								$response['contents'][$i]['write'] = true;
-							}else{
-								$response['contents'][$i]['write'] = false;
-							}
-							$response['contents'][$i]['totalSummaries'] = $row['totalSummaries'];
-							$i++;
-						}
+					if(mysqli_affected_rows($connection) > 0){
+						$response['status'] = true;
+					}else{
+						$response['status'] = false;
 					}
 				}else{
 					$response['status'] = false;

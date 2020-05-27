@@ -70,6 +70,21 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 						}
 					}
 
+					if(isset($_POST['filesToAdopt'])){
+						$files = base64_decode($_POST['filesToAdopt']);
+						$filesToAdopt = json_decode($files);
+
+						foreach ($filesToAdopt as $id) {
+							$adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$dbrowID' WHERE id='$id'");
+							if(!$adopt){
+								$response['status'] = false;
+								$response['errors'] = "ADPFI: " . mysqli_error($connection);
+								echo json_encode($response);
+								exit();
+							}
+						}
+					}
+
 					if(isset($_POST['filesToRemove'])){
 						$files = base64_decode($_POST['filesToRemove']);
 						$filesToRemove = json_decode($files);
@@ -119,21 +134,7 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 							exit();
 						}
 					}
-
-					if(isset($_POST['filesToAdopt'])){
-						$files = base64_decode($_POST['filesToAdopt']);
-						$filesToAdopt = json_decode($files);
-
-						foreach ($filesToAdopt as $id) {
-							$adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$dbrowID' WHERE id='$id'");
-							if(!$adopt){
-								$response['status'] = false;
-								$response['errors'] = "ADPFI: " . mysqli_error($connection);
-								echo json_encode($response);
-								exit();
-							}
-						}
-					}
+					
 					$response['status'] = true;
 					$response['errors'] = "";
 				}else{

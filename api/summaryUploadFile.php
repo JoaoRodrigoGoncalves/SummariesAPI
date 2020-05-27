@@ -33,6 +33,7 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	//************************** SETTINGS ********************
 
 	$filespath = "resources/usercontent/";
+	$maxFileSize = "52428800";
 
 	//********************************************************
 
@@ -50,9 +51,9 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 					$explodedName = explode("/", $tmp_name);
 					$filetype = explode(".", $fileName);
 
-					if(istypeBlocked($filetype[count($filetype)-1])){
+					if(istypeBlocked($filetype[count($filetype)-1]) || $_FILES["file"]["size"] > $maxFileSize){
 						$response['status'] = false;
-						$response['errors'] = "File type not allowed!";
+						$response['errors'] = "File type not allowed or is too large!";
 					}else{
 						$finalFileName = sha1_file($tmp_name) . sha1(time());
 						move_uploaded_file($tmp_name, "../" . $filespath . $finalFileName);

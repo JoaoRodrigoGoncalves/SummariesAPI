@@ -1,3 +1,8 @@
+JSON Library:
+	Original Name: Newtonsoft.Json
+	License: The MIT License
+	Original download link: https://github.com/JamesNK/Newtonsoft.Json
+
 Software ICON:
 
 	Original Name: Calligraphy, design, drawing, pen, tool, write icon
@@ -79,45 +84,3 @@ Administration Panel ICON
 	Original Name: Gears Configuration Tool free icon
 	License: Flaticon Basic License. (https://file000.flaticon.com/downloads/license/license.pdf)
 	Original Download link: https://www.flaticon.com/free-icon/gears-configuration-tool_59108
-
-No File Selected ICON
-
-	Original Name: Ad, aware icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20303/ad_aware_icon
-
-Excel File Selected ICON
-
-	Original Name: 2007, microsoft, office icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20368/2007_microsoft_office_icon
-
-PowerPoint File Selected ICON
-
-	Original Name: Powerpoint icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20371/powerpoint_icon
-
-ZIP File Selected ICON
-
-	Original Name: Zip icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20419/zip_icon
-
-Word File Selected ICON
-
-	Original Name: 2007, microsoft, office, word icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20372/2007_microsoft_office_word_icon
-
-Notepad File Selected ICON
-
-	Original Name: Notepad icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20382/notepad_icon
-
-PDF File Selected ICON
-
-	Original Name: Acrobat, adobe, cs3 icon
-	License: Attribution-NonCommercial-Share Alike 3.0 Unported
-	Original Download link: https://www.iconfinder.com/icons/20304/acrobat_adobe_cs3_icon

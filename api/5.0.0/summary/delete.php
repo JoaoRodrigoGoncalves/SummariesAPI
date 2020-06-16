@@ -1,98 +1,45 @@
 <?php
 header('Content-type: application/json; charset=utf-8');
+require_once("../functions.php");
 $response['status'] = false;
 $response['errors'] = "";
 
-if($_SERVER['HTTP_USER_AGENT'] == "app"){
-	require("../connection.php");
-	
-
-	function isSecure() {
-	  return
-	    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-	    || $_SERVER['SERVER_PORT'] == 443;
-	}
-
-	if(!isSecure()){
-		$response['status'] = false;
-		$response['errors'] = "A ligação não é segura! É necessário que a ligação seja feita sobre SSL (HTTPS) para continuar.";
-		echo json_encode($response);
-		exit();
-	}
-
+if(CheckIfSecure()){
 	try {
-		if(!isset($_POST['API']) || !isset($_POST['userid']) || !isset($_POST['workspace']) || !isset($_POST['summaryID'])){
-			throw new Exception("Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)");
-		}
 
-		$APIkey = mysqli_real_escape_string($connection, $_POST['API']);
+		$connection = databaseConnect();
+		$authTokens = new AuthTokens();
+		$userFunctions = new UserFunctions();
+		$summaryFunctions = new SummaryFunctions();
 
-		$queryAPI = "SELECT apikey FROM APIkeys WHERE apikey='$APIkey'";
-		$APIcheck = mysqli_query($connection, $queryAPI);
-		if($APIcheck){
-			if(mysqli_num_rows($APIcheck) == 1){
+		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['userID']) || isset($_POST['workspaceID']) || isset($_POST['summaryID'])){
+			$AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
 
-				$userID = mysqli_real_escape_string($connection, $_POST['userid']);
-				$summaryID = mysqli_real_escape_string($connection, $_POST['summaryID']);
-				$workspace = mysqli_real_escape_string($connection, $_POST['workspace']);
+			$isValid = $authTokens->isTokenValid($AccessToken);
 
-				$getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE userid='$userID' AND summaryNumber='$summaryID' AND workspace='$workspace' LIMIT 1");
-				if($getSummaryInfo){
-					if(mysqli_num_rows($getSummaryInfo) > 0){
-						while($row = mysqli_fetch_array($getSummaryInfo, MYSQLI_ASSOC)){
-							$dbrowID = $row['id'];
-						}
+			if($isValid){
+				if($userFunctions->isUserAdmin($isValid)){
+					$userID = mysqli_real_escape_string($connection, $_POST['userID']);
+					$summaryID = mysqli_real_escape_string($connection, $_POST['summaryID']);
+					$workspace = mysqli_real_escape_string($connection, $_POST['workspaceID']);
 
-						$getSummaryPaths = mysqli_query($connection, "SELECT path FROM attachmentMapping WHERE summaryID='$dbrowID'");
-						if($getSummaryPaths){
-							if(mysqli_num_rows($getSummaryPaths) > 0){
-								while($row = mysqli_fetch_array($getSummaryPaths, MYSQLI_ASSOC)){
-									$paths[] = $row['path'];
-								}
-								foreach ($paths as $pth) {
-									if(!unlink("../" . $pth)){
-										$response['status'] = false;
-										$response['errors'] = "DELFI: Error while trying to delete file " . $pth;
-										echo json_encode($response);
-										exit();
-									}
-								}
-							}
-
-							$deleteRecords = mysqli_multi_query($connection, "DELETE FROM summaries WHERE id='$dbrowID'; DELETE FROM attachmentMapping WHERE summaryID='$dbrowID'");
-							if($deleteRecords){
-								if(mysqli_affected_rows($connection) > 0){
-									$response['status'] = true;
-									$response['errors'] = "";
-								}else{
-									$response['status'] = false;
-									$response['errors'] = "DELREC: No affected records.";
-								}
-							}else{
-								$response['status'] = false;
-								$response['errors'] = "DELREC: " . mysqli_error($connection);
-							}
-
-						}else{
-							$response['status'] = false;
-							$response['errors'] = "GETPTH: " . mysqli_error($connection);
-						}
-
+					if($summaryFunctions->DeleteSummaries($summaryFunctions->FindSummary($userID, $summaryID, $workspace))){
+						$response['status'] = true;
+						$response['errors'] = "";
 					}else{
 						$response['status'] = false;
-						$response['errors'] = "GETINF: No records";
+						$response['errors'] = "An Error Occurred While Trying To Delete The Summary.";
 					}
 				}else{
 					$response['status'] = false;
-					$response['errors'] = "GETINF: " . mysqli_error($connection);
+					$response['errors'] = "Permission Denied.";
 				}
 			}else{
 				$response['status'] = false;
 				$response['errors'] = "Invalid Key";
 			}
 		}else{
-			$response['status'] = false;
-			$response['errors'] = mysqli_error($connection);
+			throw new Exception("Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)");
 		}	
 	} catch (Exception $e) {
 		$response['status'] = false;
@@ -100,7 +47,7 @@ if($_SERVER['HTTP_USER_AGENT'] == "app"){
 	}
 }else{
 	$response['status'] = false;
-	$response['errors'] = "403 Forbidden";
+	$response['errors'] = "A ligação não é segura! É necessário que a ligação seja feita sobre SSL (HTTPS) para continuar.";
 }
 echo json_encode($response);
 ?>

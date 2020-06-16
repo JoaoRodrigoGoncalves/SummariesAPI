@@ -1,0 +1,136 @@
+Errors List and their meaning:
+
+GENTKN -> Token generation error
+CHKTKN -> Error while checking the existence of a token
+RFSTKN -> Error while trying to refresh the expiration time of the token
+UPDPSW -> An error occurred while trying to update the user password
+UPDUSR -> An error occurred while creating or editing the user account
+GULERR -> Error while getting user List
+DELCLS -> Error while deleting the class
+SCHCLS -> Error while searching for the class
+EDTCLS -> Error while trying to edit/add the class
+LSTCLS -> Error while trying to retrieve a list of classes
+DELWRK -> Error while trying to delete the workspace
+SUMLST -> Error while trying to get the summaries list
+FISLST -> Error while fetching the files to add to the summaries list
+SUMDEL -> Error while trying to delete a summary
+FILFCH -> Error while trying to fetch the files
+FILDEL -> Error while trying to physically delete a file
+EDTSUM -> Error while trying to add/edit a summary
+
+
+/summaries/api/5.0.0/login/login.php -> POST
+    usrnm -> string -> Username given by the user to authenticate
+    psswd -> string -> Password given by the user to authenticate
+
+    Returns -> 
+                status -> bool -> request status
+                AccessToken -> string -> The access token required for further requests
+                userID -> int -> This user ID
+                username -> string -> This user username
+                displayName -> string -> This user displayName
+                adminControl -> bool -> Whether the user is admin or not
+
+/summaries/api/5.0.0/login/logout.php -> GET
+    X_API_KEY -> string -> AccessToken (via header)
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/user/changePassword.php -> POST
+    userID -> int -> ID of the user
+    X_API_KEY -> string -> AcessToken (via header)
+    reset -> mixed -> (optional) Whether it is a reset password proceadure or not
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/user/delete.php -> POST
+    userID -> int -> ID of the user
+    X_API_KEY -> string -> AccessToken (via header)
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/user/edit.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    username -> string -> This user new username
+    displayName -> string -> This user new displayName
+    classID -> int -> This user new classID
+    admin -> mixed -> Whether the user is admin or not
+    deletionProtection -> mixed -> Whether the user is protected against accidental deletion or not
+    userID -> int -> (optional) The ID of the user to be edited. If this field is filled, it means that it is an edit operation
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/user/list.php -> GET 
+    X_API_KEY -> string -> AccessToken (via header)
+
+    Returns ->
+                status -> bool -> request status
+                contents -> string -> List of registered users
+
+/summaries/api/5.0.0/class/delete.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    classID -> int -> The ID of the class to be deleted
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/class/edit.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    name -> string -> (base64) The name of the class
+    classID -> int -> (optional) The ID of the class. If this field is filled it means that this is an edit operation
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/class/list.php -> GET
+    X_API_KEY -> string -> AccessToken (via header)
+
+    Returns ->
+                status -> bool -> request status
+                contents -> string -> List of Classes
+
+/summaries/api/5.0.0/workspace/delete.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    workspaceID -> int -> The ID of the workspace to delete
+    deleteSummaries -> bool -> Whether the summaries associated with the specified workspace should be deleted or not
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/workspace/edit.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    name -> string -> (base64) The workspace name
+    readMode -> bool -> Whether the users can see the workspace or not
+    writeMode -> bool -> Whether the workspace is read-only or not
+    workspaceID -> int -> (optional) The workspaceID. If this field is filled it means that this is an edit operation
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/workspace/flush.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    workspaceID -> int -> ID of the workspace to be deleted
+
+    Returns ->
+                status -> bool -> request status
+
+/summaries/api/5.0.0/workspace/list.php -> GET
+    X_API_KEY -> string -> AccessToken (via header)
+
+    Returns ->
+                status -> bool -> request status
+                contents -> string -> List of Workspaces
+
+/summaries/api/5.0.0/summary/delete.php -> POST
+    X_API_KEY -> string -> AccessToken (via header)
+    userID -> int -> The id of the user
+    summaryID -> int -> The ID of the summary
+    workspaceID -> int -> The workspace ID
+
+    Returns ->
+                status -> bool -> request status
+

@@ -38,8 +38,10 @@ class AuthTokens{
         $query = "INSERT INTO AccessTokens (userid, token, expiredate) VALUES ('$userID', '$tokenEscaped', '$expireTime')";
         $saveToken = mysqli_query($connection, $query);
         if($saveToken){
+            mysqli_free_result($saveToken);
             return $token;
         }else{
+            mysqli_free_result($saveToken);
             throw new Exception("GENTKN: " . mysqli_error($connection));
             return false;
         }
@@ -63,6 +65,7 @@ class AuthTokens{
                 }
             }
         }else{
+            mysqli_free_result($queryToken);
             throw new Exception("CHKTKN: " . mysqli_error($connection));
         }
         return false;
@@ -83,7 +86,9 @@ class AuthTokens{
             if(mysqli_affected_rows($addTime) > 0){
                 return true;
             }
+            mysqli_free_result($addTime);
         }else{
+            mysqli_free_result($addTime);
             throw new Exception("RFSTKN: " . mysqli_error($connection));
         }
         return false;
@@ -100,9 +105,11 @@ class AuthTokens{
         $delete = mysqli_query($connection, "DELETE FROM AccessTokens WHERE token='$token'");
         if($delete){
             if(mysqli_affected_rows($delete) > 0){
+                mysqli_free_result($delete);
                 return true;
             }
         }else{
+            mysqli_free_result($delete);
             throw new Exception("DELTKN: " . mysqli_error($connection));
         }
         return false;
@@ -127,11 +134,13 @@ class UserFunctions{
 			if(mysqli_num_rows($run) == 1){
 				while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
 					if(password_verify($password, $row['password'])){
+                        mysqli_free_result($run);
 						return true;
 					}
 				}
 			}
 		}else{
+            mysqli_free_result($run);
 			throw new Exception("PSWCHK: " . mysqli_error($connection));
 		}
 		return false;
@@ -150,9 +159,11 @@ class UserFunctions{
         $updatePassword = mysqli_query($connection, $query);
         if($updatePassword){
             if(mysqli_affected_rows($connection) > 0){
+                mysqli_free_result($updatePassword);
                 return true;
             }
         }else{
+            mysqli_free_result($updatePassword);
             throw new Exception("UPDPSW: " . mysqli_error($connection));
         }
         return false;
@@ -184,9 +195,11 @@ class UserFunctions{
 		$run = mysqli_query($connection, $query);
 		if($run){
 			if(mysqli_affected_rows($connection) == 1){
+                mysqli_free_result($run);
 				return true;
 			}
 		}else{
+            mysqli_free_result($run);
 			throw new Exception("UPDUSR: " . mysqli_error($connection));
 		}
 		return false;
@@ -205,10 +218,12 @@ class UserFunctions{
         if($query){
             while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
                 if($row['isDeletionProtected'] == 1){
+                    mysqli_free_result($query);
                     return true;
                 }
             }
         }else{
+            mysqli_free_result($query);
             throw new Exception("ADMCHK: " . mysqli_error($connection));
         }
         return false;
@@ -226,10 +241,12 @@ class UserFunctions{
         if($query){
             while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
                 if($row['adminControl'] == 1){
+                    mysqli_free_result($query);
                     return true;
                 }
             }
         }else{
+            mysqli_free_result($query);
             throw new Exception("ADMCHK: " . mysqli_error($connection));
         }
         return false;
@@ -247,9 +264,11 @@ class UserFunctions{
 		$run = mysqli_query($connection, $query);
 		if($run){
 			if(mysqli_affected_rows($connection) == 1){
+                mysqli_free_result($run);
 				return true;
 			}
 		}else{
+            mysqli_free_result($run);
 			throw new Exception("DELUSR: " . mysqli_error($connection));
 		}
 		return false;
@@ -274,9 +293,11 @@ class UserFunctions{
 				$list[$i]['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
 				$list[$i]['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
 				$i++;
-			}
+            }
+            mysqli_free_result($run);
 			return $list;
 		}else{
+            mysqli_free_result($run);
 			throw new Exception("GULERR: " . mysqli_error($connection));
 		}
 		return false;
@@ -304,9 +325,11 @@ class ClassFunctions{
             $run = mysqli_query($connection, $query);
             if($run){
                 if(mysqli_num_rows($run) == 1){
+                    mysqli_free_result($run);
                     return true;
                 }
             }else{
+                mysqli_free_result($run);
                 throw new Exception("SCHCLS: " . mysqli_error($connection));
             }
         }
@@ -330,8 +353,10 @@ class ClassFunctions{
                 $list[$i]['totalUsers'] = $row['totalUsers'];
                 $i++;
             }
+            mysqli_free_result($run);
             return $list;
         }else{
+            mysqli_free_result($run);
             throw new Exception("LSTCLS: " . mysqli_error($connection));
         }
         return false;
@@ -359,11 +384,14 @@ class ClassFunctions{
             $run = mysqli_query($connection, $query);
             if($run){
                 if(mysqli_affected_rows($connection) == 1){
+                    mysqli_free_result($run);
                     return true;
                 }
             }else{
+                
                 throw new Exception("EDTCLS: " . mysqli_error($connection));
             }
+            mysqli_free_result($run);
         }
         return false;
     }
@@ -386,11 +414,13 @@ class ClassFunctions{
                         $query = "UPDATE users SET classID='0' WHERE classID='$classID'";
                         $run = mysqli_query($connection, $query);
                     }
+                    mysqli_free_result($run);
                     return true;
                 }
             }else{
                 throw new Exception("DELCLS: " . mysqli_error($connection));
             }
+            mysqli_free_result($run);
         }
         return false;
     }
@@ -419,10 +449,13 @@ class WorkspaceFunctions{
                     $list[$i]['totalSummaries'] = $row['totalSummaries'];
                     $i++;
                 }
+                mysqli_free_result($run);
                 return $list;
             }
+            mysqli_free_result($run);
             return null;
         }else{
+            mysqli_free_result($run);
             throw new Exception("WRKLST: " . mysqli_error($connection));
         }
         return false;
@@ -451,9 +484,11 @@ class WorkspaceFunctions{
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
+                mysqli_free_result($run);
                 return true;
             }
         }else{
+            mysqli_free_result($run);
             throw new Exception("EDTWRK: " . mysqli_error($connection));
         }
         return false;
@@ -497,9 +532,12 @@ class WorkspaceFunctions{
                 if($deleteSummaries){
                     $summaryFunctions->DeleteSummaries($workspaceID);
                 }
+                mysqli_free_result($run);
                 return true;
             }
+            mysqli_free_result($run);
         }else{
+            mysqli_free_result($run);
             throw new Exception("DELWRK: " . mysqli_error($connection));
         }
         return false;
@@ -524,6 +562,7 @@ class SummaryFunctions{
                 return $row['id'];
             }
         }else{
+            mysqli_free_result($getSummaryInfo);
             throw new Exception("FNDSUM: " . mysqli_error($connection));
         }
         return false;
@@ -575,15 +614,21 @@ class SummaryFunctions{
                             }
                         }
                     }else{
+                        mysqli_free_result($run);
+                        mysqli_free_result($runFetch);
                         throw new Exception("FISLST: " . mysqli_error($connection));
                     }
                     $i++;
                 }
+                mysqli_free_result($run);
+                mysqli_free_result($runFetch);
                 return $list;
             }else{
+                mysqli_free_result($run);
                 return null;
             }
         }else{
+            mysqli_free_result($run);
             throw new Exception("SUMLST: " . mysqli_error($connection));
         }
         return false;
@@ -613,6 +658,7 @@ class SummaryFunctions{
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
+                mysqli_free_result($run);
                 if($isEdit){
                     return $databaseRow;
                 }else{
@@ -620,6 +666,7 @@ class SummaryFunctions{
                 }
             }
         }else{
+            mysqli_free_result($run);
             throw new Exception("EDTSUM: " . mysqli_error($connection));
         }
         return false;
@@ -641,16 +688,20 @@ class SummaryFunctions{
                 $query = "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$rowID'";
                 $run = mysqli_query($connection, $query);
                 if($run){
+                    mysqli_free_result($run);
                     if(mysqli_affected_rows($connection) == 1){
                         return true;
                     }
                 }else{
+                    mysqli_free_result($run);
                     throw new Exception("UPDFIL: " . mysqli_error($connection));
                 }
             }else{
+                mysqli_free_result($run);
                 throw new Exception("File Not Found.");
             }
         }else{
+            mysqli_free_result($run);
             throw new Exception("CHKFIL: " . mysqli_error($connection));
         }
         return false;
@@ -678,16 +729,22 @@ class SummaryFunctions{
                 if($check){
                     if(isset($map[$file])){
                         if(unlink("../" . $map[$file])){
+                            mysqli_free_result($getAttachments);
+                            mysqli_free_result($check);
                             return true;
                         }
                     }
                 }else{
+                    mysqli_free_result($getAttachments);
+                    mysqli_free_result($check);
                     throw new Exception("DELFIL: " . mysqli_error($connection));
                 }
             }else{
+                mysqli_free_result($getAttachments);
                 throw new Exception("No matches found");
             }
         }else{
+            mysqli_free_result($getAttachments);
             throw new Exception("CHKFIL: " . mysqli_error($connection));
         }
         return false;
@@ -752,6 +809,12 @@ class SummaryFunctions{
 }
 
 class FilesFunctions{
+
+    /**
+     * Checks if the given filetype is blocked in the settings
+     * @param string $type FileType
+     * @return bool true if file type is blocked, false otherwise
+     */
     function isFileTypeBlocked($type){
         $settings = new API_Settings();
         for ($i=0; $i<count($settings->blockedFiles) ; $i++) { 
@@ -762,5 +825,4 @@ class FilesFunctions{
         return false;
     }
 }
-
 ?>

@@ -7,12 +7,12 @@ if(CheckIfSecure()){
 		$connection = databaseConnect();
 		$authTokens = new AuthTokens();
 
-		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_SERVER['HTTP_FILE'])){
+		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['FILE'])){
 			$AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
 
 			$isValid = $authTokens->isTokenValid($AccessToken);
 			if($isValid){
-				$filePath = mysqli_real_escape_string($connection, $_SERVER['HTTP_FILE']);
+				$filePath = mysqli_real_escape_string($connection, $_POST['FILE']);
 		
 					$query = "SELECT * FROM attachmentMapping WHERE path='$filePath'";
 		

@@ -12,17 +12,17 @@ if(CheckIfSecure()){
 		$userFunctions = new UserFunctions();
 		$summaryFunctions = new SummaryFunctions();
 
-		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['userid']) || isset($_POST['workspace'])){
+		if(isset($_SERVER['HTTP_X_API_KEY']) && isset($_GET['userid']) && isset($_GET['workspace'])){
 			$AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
 
 			$isValid = $authTokens->isTokenValid($AccessToken);
 
 			if($isValid){
-				$userID = mysqli_real_escape_string($connection, $_POST['userid']);
+				$userID = mysqli_real_escape_string($connection, $_GET['userid']);
 
 				if($userFunctions->isUserAdmin($isValid) || $userID == $isValid){
 
-					$workspace = mysqli_real_escape_string($connection, $_POST['workspace']);
+					$workspace = mysqli_real_escape_string($connection, $_GET['workspace']);
 					$workspace = ($workspace == 0 || $workspace == null ? null : $workspace);
 
 					$list = $summaryFunctions->GetSummariesList($userID, $workspace);

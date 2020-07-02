@@ -38,10 +38,8 @@ class AuthTokens{
         $query = "INSERT INTO AccessTokens (userid, token, expiredate) VALUES ('$userID', '$tokenEscaped', '$expireTime')";
         $saveToken = mysqli_query($connection, $query);
         if($saveToken){
-            mysqli_free_result($saveToken);
             return $token;
         }else{
-            mysqli_free_result($saveToken);
             throw new Exception("GENTKN: " . mysqli_error($connection));
             return false;
         }
@@ -65,7 +63,6 @@ class AuthTokens{
                 }
             }
         }else{
-            mysqli_free_result($queryToken);
             throw new Exception("CHKTKN: " . mysqli_error($connection));
         }
         return false;
@@ -83,12 +80,10 @@ class AuthTokens{
         $expireTime = date("Y-m-d h:i:s", time() + ($settings->tokenLifeSpan * 0));
         $addTime = mysqli_query($connection, "UPDATE AccessTokens SET expiredate='$expireTime' WHERE token='$token'");
         if($addTime){
-            if(mysqli_affected_rows($addTime) > 0){
+            if(mysqli_affected_rows($connection) > 0){
                 return true;
             }
-            mysqli_free_result($addTime);
         }else{
-            mysqli_free_result($addTime);
             throw new Exception("RFSTKN: " . mysqli_error($connection));
         }
         return false;

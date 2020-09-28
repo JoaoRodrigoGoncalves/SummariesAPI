@@ -1,3 +1,16 @@
+Database
+
+The user needs to have, at least, the following permissions for this API to work properly:
+
+SELECT
+INSERT
+UPDATE
+DELETE
+CREATE
+ALTER
+EVENT
+
+
 Errors List and their meaning:
 
 GENTKN -> Token generation error
@@ -17,6 +30,7 @@ SUMDEL -> Error while trying to delete a summary
 FILFCH -> Error while trying to fetch the files
 FILDEL -> Error while trying to physically delete a file
 EDTSUM -> Error while trying to add/edit a summary
+GTKNEV -> Error while trying to get the token event
 
 
 /summaries/api/5.0.0/login/login.php -> POST

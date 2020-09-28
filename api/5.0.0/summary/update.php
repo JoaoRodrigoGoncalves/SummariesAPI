@@ -12,7 +12,7 @@ if(CheckIfSecure()){
 		$userFunctions = new UserFunctions();
 		$summaryFunctions = new SummaryFunctions();
 
-		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['operation']) || isset($_POST['userID']) || isset($_POST['summaryID']) || isset($_POST['workspace']) || isset($_POST['date']) || isset($_POST['contents'])){
+		if(isset($_SERVER['HTTP_X_API_KEY']) && isset($_POST['operation']) && isset($_POST['userID']) && isset($_POST['summaryID']) && isset($_POST['workspaceID']) && isset($_POST['date']) && isset($_POST['contents'])){
 			$AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
 
 			$isValid = $authTokens->isTokenValid($AcessToken);
@@ -22,7 +22,7 @@ if(CheckIfSecure()){
 				if($userFunctions->isUserAdmin($isValid) || $userID==$isValid){
 
 					$summaryID = mysqli_real_escape_string($connection, $_POST['summaryID']);
-					$workspaceID = mysqli_real_escape_string($connection, $_POST['workspace']);
+					$workspaceID = mysqli_real_escape_string($connection, $_POST['workspaceID']);
 					$date = base64_decode($_POST['date']);
 					$date = mysqli_real_escape_string($connection, $date);
 					$contents = base64_decode($_POST['contents']);
@@ -34,12 +34,18 @@ if(CheckIfSecure()){
 
 					if($rowID){
 
+						$response['status'] = true;
+						$response['errors'] = "";
+
 						if(isset($_POST['filesToAdopt'])){
 							$files = base64_decode($_POST['filesToAdopt']);
 							$filesToAdopt = json_decode($files);
 
 							foreach ($filesToAdopt as $id) {
-								$summaryFunctions->AdoptFile($id, $summaryID);
+								if(!$summaryFunctions->AdoptFile($id, $rowID)){
+									$response['status'] = false;
+									$response['errors'] = "Failed to Adopt File";
+								}
 							}
 						}
 
@@ -49,7 +55,10 @@ if(CheckIfSecure()){
 								$filesToRemove = json_decode($files);
 
 								foreach($filesToRemove as $file){
-									$summaryFunctions->DeleteFile($rowID, $file);
+									if(!$summaryFunctions->DeleteFile($rowID, $file)){
+										$response['status'] = false;
+										$response['errors'] = "Failed to Delete File";
+									}
 								}
 							}
 						}

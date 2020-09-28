@@ -33,10 +33,12 @@ class AuthTokens{
         $connection = databaseConnect();
 
         $token = bin2hex(random_bytes($settings->tokenLength));
-        $expireTime = date("Y-m-d h:i:s", time() + ($settings->tokenLifeSpan * 0));
-        $tokenEscaped = mysqli_real_escape_string($connection, $token);
-        $query = "INSERT INTO AccessTokens (userid, token, expiredate) VALUES ('$userID', '$tokenEscaped', '$expireTime')";
-        $saveToken = mysqli_query($connection, $query);
+        $expireTime = date("Y-m-d H:i:s", strtotime("+" . $settings->tokenLifeSpan . " minutes"));
+        $eventName = $userID . substr($token, 0, 10);
+        $query = "INSERT INTO AccessTokens (AccessTokens.userid, AccessTokens.token, AccessTokens.eventName, AccessTokens.expiredate) VALUES ('$userID', '$token', '$eventName', '$expireTime');";
+        $query .= "CREATE EVENT " . $eventName . " ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL " . $settings->tokenLifeSpan . " HOUR_MINUTE DO DELETE FROM AccessTokens WHERE AccessTokens.token='$token' LIMIT 1;";
+        $query .= "SET GLOBAL event_scheduler = ON;";
+        $saveToken = mysqli_multi_query($connection, $query);
         if($saveToken){
             return $token;
         }else{
@@ -75,28 +77,60 @@ class AuthTokens{
      */
     function RefreshTime($token){
         $settings = new API_Settings();
+        $authTokens = new AuthTokens();
         $connection = databaseConnect();
 
-        $expireTime = date("Y-m-d h:i:s", time() + ($settings->tokenLifeSpan * 0));
-        $addTime = mysqli_query($connection, "UPDATE AccessTokens SET expiredate='$expireTime' WHERE token='$token'");
-        if($addTime){
-            if(mysqli_affected_rows($connection) > 0){
-                return true;
+        $expireTime = date("Y-m-d H:i:s", strtotime("+" . $settings->tokenLifeSpan . " minutes"));
+        $eventName = $authTokens->getTokenEvent($token);
+        if($eventName){
+            $addTimeQuery = "UPDATE AccessTokens SET expiredate='$expireTime' WHERE token='$token';";
+            $addTimeQuery .= "ALTER EVENT " . $eventName . " ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL " . $settings->tokenLifeSpan . " HOUR_MINUTE";
+            $addTime = mysqli_multi_query($connection, $addTimeQuery);
+            if($addTime){
+                if(mysqli_affected_rows($connection) > 0){
+                    return true;
+                }
+            }else{
+                throw new Exception("RFSTKN: " . mysqli_error($connection));
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Searches the database for the event associated with the specified token
+     * WARNING: Assumes that the token is valid. This is not a replacement for isTokenValid()
+     * @param string $token The token associated with the event
+     * @return mixed Returns the token event or false if token no found
+     */
+    function getTokenEvent($token){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT eventName FROM AccessTokens WHERE token='$token' LIMIT 1");
+        if($query){
+            if(mysqli_num_rows($query) > 0){
+                $query = mysqli_fetch_array($query, MYSQLI_ASSOC);
+                return $query['eventName'];
             }
         }else{
-            throw new Exception("RFSTKN: " . mysqli_error($connection));
+            throw new Exception("GTKNEV: " . mysqli_error($connection));
         }
         return false;
     }
 
     /**
      * Deletes the specifeied token
-     * @param string $token Then token to be deleted
+     * @param string $token The token to be deleted
      * @return bool True if operation preformed successfully, false otherwise.
      */
     function DeleteToken($token){
         $connection = databaseConnect();
+        $authTokens = new AuthTokens();
 
+        $eventName = $authTokens->getTokenEvent($token);
+        if($eventName){
+            mysqli_query($connection, "DROP EVENT IF EXISTS " . $eventName);
+        }
         $delete = mysqli_query($connection, "DELETE FROM AccessTokens WHERE token='$token'");
         if($delete){
             if(mysqli_affected_rows($delete) > 0){
@@ -154,11 +188,9 @@ class UserFunctions{
         $updatePassword = mysqli_query($connection, $query);
         if($updatePassword){
             if(mysqli_affected_rows($connection) > 0){
-                mysqli_free_result($updatePassword);
                 return true;
             }
         }else{
-            mysqli_free_result($updatePassword);
             throw new Exception("UPDPSW: " . mysqli_error($connection));
         }
         return false;
@@ -190,11 +222,9 @@ class UserFunctions{
 		$run = mysqli_query($connection, $query);
 		if($run){
 			if(mysqli_affected_rows($connection) == 1){
-                mysqli_free_result($run);
 				return true;
-			}
+            }
 		}else{
-            mysqli_free_result($run);
 			throw new Exception("UPDUSR: " . mysqli_error($connection));
 		}
 		return false;
@@ -218,7 +248,6 @@ class UserFunctions{
                 }
             }
         }else{
-            mysqli_free_result($query);
             throw new Exception("ADMCHK: " . mysqli_error($connection));
         }
         return false;
@@ -241,7 +270,6 @@ class UserFunctions{
                 }
             }
         }else{
-            mysqli_free_result($query);
             throw new Exception("ADMCHK: " . mysqli_error($connection));
         }
         return false;
@@ -259,11 +287,9 @@ class UserFunctions{
 		$run = mysqli_query($connection, $query);
 		if($run){
 			if(mysqli_affected_rows($connection) == 1){
-                mysqli_free_result($run);
 				return true;
 			}
 		}else{
-            mysqli_free_result($run);
 			throw new Exception("DELUSR: " . mysqli_error($connection));
 		}
 		return false;
@@ -320,11 +346,9 @@ class ClassFunctions{
             $run = mysqli_query($connection, $query);
             if($run){
                 if(mysqli_num_rows($run) == 1){
-                    mysqli_free_result($run);
                     return true;
                 }
             }else{
-                mysqli_free_result($run);
                 throw new Exception("SCHCLS: " . mysqli_error($connection));
             }
         }
@@ -379,14 +403,11 @@ class ClassFunctions{
             $run = mysqli_query($connection, $query);
             if($run){
                 if(mysqli_affected_rows($connection) == 1){
-                    mysqli_free_result($run);
                     return true;
                 }
             }else{
-                
                 throw new Exception("EDTCLS: " . mysqli_error($connection));
             }
-            mysqli_free_result($run);
         }
         return false;
     }
@@ -409,13 +430,11 @@ class ClassFunctions{
                         $query = "UPDATE users SET classID='0' WHERE classID='$classID'";
                         $run = mysqli_query($connection, $query);
                     }
-                    mysqli_free_result($run);
                     return true;
                 }
             }else{
                 throw new Exception("DELCLS: " . mysqli_error($connection));
             }
-            mysqli_free_result($run);
         }
         return false;
     }
@@ -467,8 +486,8 @@ class WorkspaceFunctions{
     function EditWorkspace($name, $readMode, $writeMode, $workspaceID = null){
         $connection = databaseConnect();
 
-        $readMode = ($readMode == true || $readMode == "true" || $readMode == "True" ? 1 : 0);
-        $writeMode = ($writeMode == true || $writeMode == "true" || $writeMode == "True" ? 1 : 0);
+        $readMode = ($readMode === true || $readMode == "true" || $readMode == "True" ? 1 : 0);
+        $writeMode = ($writeMode === true || $writeMode == "true" || $writeMode == "True" ? 1 : 0);
         $writeMode = ($readMode == 0 ? 0 : $writeMode);
 
         if($workspaceID == null){
@@ -479,11 +498,9 @@ class WorkspaceFunctions{
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
-                mysqli_free_result($run);
                 return true;
             }
         }else{
-            mysqli_free_result($run);
             throw new Exception("EDTWRK: " . mysqli_error($connection));
         }
         return false;
@@ -525,14 +542,21 @@ class WorkspaceFunctions{
         if($run){
             if(mysqli_affected_rows($connection) > 0){
                 if($deleteSummaries){
-                    $summaryFunctions->DeleteSummaries($workspaceID);
+                    $query = mysqli_query($connection, "SELECT id FROM summaries WHERE workspace='$workspaceID'");
+                    if($query){
+                        if(mysqli_num_rows($query) > 0){
+                            while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
+                                $summaryFunctions->DeleteSummaries($row['id']);
+                            }
+                            mysqli_free_result($query);
+                        }
+                    }else{
+                        throw new Exception("SUMLST: " . mysqli_error($connection));
+                    }
                 }
-                mysqli_free_result($run);
                 return true;
             }
-            mysqli_free_result($run);
         }else{
-            mysqli_free_result($run);
             throw new Exception("DELWRK: " . mysqli_error($connection));
         }
         return false;
@@ -596,6 +620,7 @@ class SummaryFunctions{
                     $list[$i]['userid'] = $row['userid'];
                     $list[$i]['date'] = $row['date'];
                     $list[$i]['summaryNumber'] = $row['summaryNumber'];
+                    $list[$i]['workspace'] = $row['workspace'];
                     $list[$i]['contents'] = $row['contents'];
                     $fetchFiles = "SELECT * FROM attachmentMapping WHERE summaryID='$rowID'";
                     $runFetch = mysqli_query($connection, $fetchFiles);
@@ -653,15 +678,17 @@ class SummaryFunctions{
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
-                mysqli_free_result($run);
                 if($isEdit){
                     return $databaseRow;
                 }else{
                     return $summaryFunctions->FindSummary($userID, $summaryID, $workspaceID);
                 }
+            }else{
+                if($isEdit){
+                    return $databaseRow;
+                }
             }
         }else{
-            mysqli_free_result($run);
             throw new Exception("EDTSUM: " . mysqli_error($connection));
         }
         return false;
@@ -683,20 +710,16 @@ class SummaryFunctions{
                 $query = "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$rowID'";
                 $run = mysqli_query($connection, $query);
                 if($run){
-                    mysqli_free_result($run);
                     if(mysqli_affected_rows($connection) == 1){
                         return true;
                     }
                 }else{
-                    mysqli_free_result($run);
                     throw new Exception("UPDFIL: " . mysqli_error($connection));
                 }
             }else{
-                mysqli_free_result($run);
                 throw new Exception("File Not Found.");
             }
         }else{
-            mysqli_free_result($run);
             throw new Exception("CHKFIL: " . mysqli_error($connection));
         }
         return false;
@@ -723,23 +746,18 @@ class SummaryFunctions{
                 $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
                 if($check){
                     if(isset($map[$file])){
-                        if(unlink("../" . $map[$file])){
+                        if(unlink(ROOT_FOLDER . "/" . $map[$file])){
                             mysqli_free_result($getAttachments);
-                            mysqli_free_result($check);
                             return true;
                         }
                     }
                 }else{
-                    mysqli_free_result($getAttachments);
-                    mysqli_free_result($check);
                     throw new Exception("DELFIL: " . mysqli_error($connection));
                 }
             }else{
-                mysqli_free_result($getAttachments);
                 throw new Exception("No matches found");
             }
         }else{
-            mysqli_free_result($getAttachments);
             throw new Exception("CHKFIL: " . mysqli_error($connection));
         }
         return false;
@@ -747,55 +765,41 @@ class SummaryFunctions{
 
     /**
      * Deletes Summaries and files from the database and fileSystem
-     * @param int $id SummaryID to delete
+     * @param int $id SummaryID (row) to delete
      * @return bool True if operation preformed successfully, false otherwise
      */
     function DeleteSummaries($id){
         $connection = databaseConnect();
 
-        $query = "SELECT id FROM summaries WHERE id='$id'";
-        $run = mysqli_query($connection, $query);
-        if($run){
-            if(mysqli_num_rows($run) > 0){
-                while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-                    $rowID = $row['id'];
-                }
-
-                $delete = "DELETE FROM summaries WHERE id='$id'";
-                $runDelete = mysqli_query($connection, $delete);
-                if($runDelete){
-                    if(mysqli_affected_rows($connection) == 1){
-                        $files = "SELECT id, path FROM attachmentMapping WHERE summaryID='$rowID'";
-                        $fetchFiles = mysqli_query($connection, $files);
-                        if($fetchFiles){
-                            if(mysqli_num_rows($fetchFiles) > 0){
-                                while($row = mysqli_fetch_array($fetchFiles, MYSQLI_ASSOC)){
-                                    if(unlink("../../" . $row['path'])){
-                                        $thisRow = $row['id'];
-                                        $deleteRow = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE id='$thisRow'");
-                                        if($deleteRow){
-                                            return true;
-                                        }else{
-                                            throw new Exception("ROWREM: " . mysqli_error($connection));
-                                            return false;
-                                        }
-                                    }else{
-                                        throw new Exception("FILDEL");
-                                        return false;
-                                    }
+        $delete = "DELETE FROM summaries WHERE id='$id'";
+        $runDelete = mysqli_query($connection, $delete);
+        if($runDelete){
+            if(mysqli_affected_rows($connection) == 1){
+                $files = "SELECT id, path FROM attachmentMapping WHERE summaryID='$id'";
+                $fetchFiles = mysqli_query($connection, $files);
+                if($fetchFiles){
+                    if(mysqli_num_rows($fetchFiles) > 0){
+                        while($row = mysqli_fetch_array($fetchFiles, MYSQLI_ASSOC)){
+                            if(unlink(ROOT_FOLDER . "/" . $row['path'])){
+                                $thisRow = $row['id'];
+                                $deleteRow = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE id='$thisRow'");
+                                if($deleteRow){
+                                    return true;
+                                }else{
+                                    throw new Exception("ROWREM: " . mysqli_error($connection));
+                                    return false;
                                 }
+                            }else{
+                                throw new Exception("FILDEL");
+                                return false;
                             }
-                            return true;
-                        }else{
-                            throw new Exception("FILFCH: " . mysqli_error($connection));
                         }
                     }
+                    return true;
                 }else{
-                    throw new Exception("SUMDEL: " . mysqli_error($connection));
+                    throw new Exception("FILFCH: " . mysqli_error($connection));
                 }
-                return false;
             }
-            return true;
         }else{
             throw new Exception("SUMDEL: " . mysqli_error($connection));
         }

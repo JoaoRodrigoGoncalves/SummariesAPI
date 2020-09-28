@@ -12,7 +12,7 @@ if(CheckIfSecure()){
 		$userFunctions = new UserFunctions();
 		$summaryFunctions = new SummaryFunctions();
 
-		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['userID']) || isset($_POST['workspaceID']) || isset($_POST['summaryID'])){
+		if(isset($_SERVER['HTTP_X_API_KEY']) && isset($_POST['userID']) && isset($_POST['workspaceID']) && isset($_POST['summaryID'])){
 			$AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
 
 			$isValid = $authTokens->isTokenValid($AccessToken);

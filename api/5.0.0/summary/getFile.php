@@ -1,11 +1,13 @@
 <?php
-require("../functions.php");
+require_once("../functions.php");
+require_once("../settings.php");
 
 if(CheckIfSecure()){
 	try {
 
 		$connection = databaseConnect();
 		$authTokens = new AuthTokens();
+		$settings = new API_Settings();
 
 		if(isset($_SERVER['HTTP_X_API_KEY']) || isset($_POST['FILE'])){
 			$AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
@@ -23,7 +25,7 @@ if(CheckIfSecure()){
 								$actualName = $row['filename'];
 							}
 		
-							if(file_exists("../" . $filePath)){
+							if(file_exists(ROOT_FOLDER . "/" . $filePath)){
 		
 								// https://www.php.net/manual/en/function.readfile.php
 		
@@ -33,8 +35,8 @@ if(CheckIfSecure()){
 								header('Expires: 0');
 								header('Cache-Control: must-revalidate');
 								header('Pragma: public');
-								header('Content-Length: ' . filesize("../" . $filePath));
-								readfile("../" . $filePath);
+								header('Content-Length: ' . filesize(ROOT_FOLDER . "/" . $filePath));
+								readfile(ROOT_FOLDER . "/" . $filePath);
 								exit();
 		
 							}else{

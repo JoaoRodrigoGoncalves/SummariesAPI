@@ -19,8 +19,13 @@ if(CheckIfSecure()){
 			if($isValid){
 				if($userFunctions->isUserAdmin($isValid)){
 					$workspaceID = mysqli_real_escape_string($connection, $_POST['workspaceID']);
-					$deleteSummaries = mysqli_real_escape_string($connection, $_POST['deleteSummaries']);
-					$deleteSummaries = ($deleteSummaries == true || $deleteSummaries == "true" || $deleteSummaries == "True" ? true : false);
+					if(isset($_POST['deleteSummaries']))
+					{
+						$deleteSummaries = mysqli_real_escape_string($connection, $_POST['deleteSummaries']);
+						$deleteSummaries = ($deleteSummaries == true || $deleteSummaries == "true" || $deleteSummaries == "True" ? true : false);
+					}else{
+						$deleteSummaries = false;
+					}
 
 					if($workspaceFunctions->DeleteWorkspace($workspaceID, $deleteSummaries)){
 						$response['status'] = true;

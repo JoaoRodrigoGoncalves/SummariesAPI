@@ -25,9 +25,9 @@ if(CheckIfSecure()){
 				$classID = base64_decode($_POST['classID']);
 				$classID = mysqli_real_escape_string($connection, $classID);
 				$isAdmin = mysqli_real_escape_string($connection, $_POST['admin']);
-				$isAdmin = (($isAdmin == "true" || $isAdmin == "True" || $isAdmin==true) ? true : false);
+				$isAdmin = (($isAdmin == "true" || $isAdmin == "True" || $isAdmin === true) ? true : false);
 				$isDeletionProtected = mysqli_real_escape_string($connection, $_POST['deletionProtection']);
-				$isDeletionProtected = (($isDeletionProtected == "true" || $isDeletionProtected == "True" || $isDeletionProtected==true) ? true : false);
+				$isDeletionProtected = (($isDeletionProtected == "true" || $isDeletionProtected == "True" || $isDeletionProtected === true) ? true : false);
 				$userID = (isset($_POST['userID']) ? $_POST['userID'] : null);
 
 				if($UserFunctions->EditUser($username, $displayName, $classID, $isAdmin, $isDeletionProtected, $userID)){

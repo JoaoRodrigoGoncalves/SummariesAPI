@@ -13,7 +13,7 @@ try{
     $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
     $uri = explode( '/', $uri );
     if(!CheckIfSecure()){
-        header("HTTP/1.0 Bad Request");
+        header("HTTP/1.0 400 Bad Request");
         $response['errors'] = "Insecure Connection! The connection must be done over HTTPS (TLS).";
         echo json_encode($response);
         exit();
@@ -125,36 +125,65 @@ try{
                 switch($_SERVER['REQUEST_METHOD']){
                     
                     case "GET":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
-                            if(isset($_SERVER['HTTP_X_API_KEY'])){
-                                $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
-                    
-                                if($authTokens->isTokenValid($AccessToken)){
-                                    $list = $classFunctions->GetClassList();
-                                    if($list){
-                                        header("HTTP/1.0 200 OK");
-                                        $response['status'] = true;
-                                        $response['errors'] = "";
-                                        $response['contents'] = $list;
+                        if(isset($uri[$opertation+1])){
+                            if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                                if(isset($_SERVER['HTTP_X_API_KEY'])){
+                                    $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                        
+                                    if($authTokens->isTokenValid($AccessToken)){
+                                        $list = $classFunctions->GetClassList();
+                                        if($list){
+                                            header("HTTP/1.0 200 OK");
+                                            $response['status'] = true;
+                                            $response['errors'] = "";
+                                            $response['contents'] = $list;
+                                        }else{
+                                            header("HTTP/1.0 500 Internal Server Error");
+                                            $response['status'] = false;
+                                            $response['errors'] = "An Error Occurred While Trying to Retrieve The List Of Classes";
+                                        }
                                     }else{
-                                        header("HTTP/1.0 500 Internal Server Error");
+                                        header("HTTP/1.0 401 Unauthorized");
                                         $response['status'] = false;
-                                        $response['errors'] = "An Error Occurred While Trying to Retrieve The List Of Classes";
+                                        $response['errors'] = "Invalid Token";
                                     }
                                 }else{
-                                    header("HTTP/1.0 401 Unauthorized");
-                                    $response['status'] = false;
-                                    $response['errors'] = "Invalid Token";
+                                    header("HTTP/1.0 400 Bad Request");
+                                    $response["status"] = false;
+                                    $response["errors"] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
                                 }
-                            }else{
-                                header("HTTP/1.0 400 Bad Request");
-                                $response["status"] = false;
-                                $response["errors"] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
-                            }
-                        }else{
-                            if(is_numeric($uri[$opertation+1])){
-                                //TODO: get class by id
-                                header("HTPP/1.0 501 Not Implemented");
+                            }else if(is_numeric($uri[$opertation+1])){
+                                if(isset($_SERVER['HTTP_X_API_KEY'])){
+                                    $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                        
+                                    if($authTokens->isTokenValid($AccessToken)){
+                                        if($classFunctions->ClassExists(null, $uri[$opertation+1])){
+                                            $classInfo = $classFunctions->GetClass($uri[$opertation+1]);
+                                            if($classInfo){
+                                                header("HTTP/1.0 200 OK");
+                                                $response['status'] = true;
+                                                $response['errors'] = "";
+                                                $response['contents'] = $classInfo;
+                                            }else{
+                                                header("HTTP/1.0 500 Internal Server Error");
+                                                $response['status'] = false;
+                                                $response['errors'] = "";
+                                            }
+                                        }else{
+                                            header("HTTP/1.0 404 Not Found");
+                                            $response['status'] = true;
+                                            $response['errors'] = "";
+                                        }
+                                    }else{
+                                        header("HTTP/1.0 401 Unauthorized");
+                                        $response['status'] = false;
+                                        $response['errors'] = "Invalid Token";
+                                    }
+                                }else{
+                                    header("HTTP/1.0 400 Bad Request");
+                                    $response["status"] = false;
+                                    $response["errors"] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
+                                }
                             }else{
                                 header("HTTP/1.0 400 Bad Request");
                                 $response["errors"] = "Malformed request";
@@ -163,7 +192,7 @@ try{
                     break;
     
                     case "POST":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                        if(!isset($uri[$opertation+1])){
                             if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($_POST['name']))){
                                 $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
                     
@@ -197,92 +226,104 @@ try{
                     break;
     
                     case "PUT":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
-                            header("HTTP/1.0 400 Bad Request");
-                            $response["errors"] = "Malformed request";
-                        }else{
-                            if(is_numeric($uri[$opertation+1])){
-                                if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($_POST['name']) || (isset($_POST['classID'])))){
-                                    $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
-                        
-                                    $isValid = $authTokens->isTokenValid($AccessToken);
-                                    if($isValid){
-                                        $name = base64_decode($_POST['name']);
-                                        $name = mysqli_real_escape_string($connection, $name);
-                                        $classID = mysqli_real_escape_string($connection, $_POST['classID']);
-                                        if($classFuntions->EditClass($name, $classID)){
-                                            header("HTTP/1.0 200 OK");
-                                            $response['status'] = true;
-                                            $response['errors'] = "";
+                        if(isset($uri[$opertation+1])){
+                            if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                                header("HTTP/1.0 400 Bad Request");
+                                $response["errors"] = "Missing Parameters";
+                            }else{
+                                if(is_numeric($uri[$opertation+1])){
+                                    // https://lornajane.net/posts/2008/accessing-incoming-put-data-from-php
+                                    $PUT_vars = parse_str(file_get_contents("php://input"), $PUT_vars);
+                                    if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($PUT_vars['name']))){
+                                        $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                            
+                                        $isValid = $authTokens->isTokenValid($AccessToken);
+                                        if($isValid){
+                                            $name = base64_decode($PUT_vars['name']);
+                                            $name = mysqli_real_escape_string($connection, $name);
+                                            $classID = mysqli_real_escape_string($connection, $uri[$opertation+1]);
+                                            if($classFuntions->EditClass($name, $classID)){
+                                                header("HTTP/1.0 200 OK");
+                                                $response['status'] = true;
+                                                $response['errors'] = "";
+                                            }else{
+                                                header("HTTP/1.0 500 Internal Server Error");
+                                                $response['status'] = false;
+                                                $response['errors'] = "An Error Occurred While Trying To Edit a Class";
+                                            }
                                         }else{
-                                            header("HTTP/1.0 500 Internal Server Error");
+                                            header("HTTP/1.0 401 Unauthorized");
                                             $response['status'] = false;
-                                            $response['errors'] = "An Error Occurred While Trying To Edit a Class";
+                                            $response['errors'] = "Invalid Token";
                                         }
                                     }else{
-                                        header("HTTP/1.0 401 Unauthorized");
+                                        header("HTTP/1.0 400 Bad Request");
                                         $response['status'] = false;
-                                        $response['errors'] = "Invalid Token";
+                                        $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
                                     }
                                 }else{
                                     header("HTTP/1.0 400 Bad Request");
-                                    $response['status'] = false;
-                                    $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
+                                    $response["errors"] = "Malformed request";
                                 }
-                            }else{
-                                header("HTTP/1.0 400 Bad Request");
-                                $response["errors"] = "Malformed request";
                             }
+                        }else{
+                            header("HTTP/1.0 400 Bad Request");
+                            $response["errors"] = "Missing Parameters";
                         }
                     break;
     
                     case "DELETE":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
-                            header("HTTP/1.0 400 Bad Request");
-                            $response["errors"] = "Malformed request";
-                        }else{
-                            if(is_numeric($uri[$opertation+1])){
-                                if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($_POST['classID']))){
-                                    $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
-                        
-                                    $isValid = $authTokens->isTokenValid($AccessToken);
-                                    if($isValid){
-                                        if($userFunctions->isUserAdmin($isValid)){
-                                            $classID = mysqli_real_escape_string($connection, $_POST['classID']);
-                                            if($classID == 0){
+                        if(isset($uri[$opertation+1])){
+                            if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                                header("HTTP/1.0 400 Bad Request");
+                                $response["errors"] = "Missing Parameters";
+                            }else{
+                                if(is_numeric($uri[$opertation+1])){
+                                    if(isset($_SERVER['HTTP_X_API_KEY'])){
+                                        $AccessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                            
+                                        $isValid = $authTokens->isTokenValid($AccessToken);
+                                        if($isValid){
+                                            if($userFunctions->isUserAdmin($isValid)){
+                                                $classID = mysqli_real_escape_string($connection, $uri[$opertation+1]);
+                                                if($classID == 0){
+                                                    header("HTTP/1.0 403 Forbidden");
+                                                    $response['status'] = false;
+                                                    $response['errors'] = "Class 0 is protected at a code level.";
+                                                }else{
+                                                    if($classFunctions->DeleteClass($classID, $settings->resetUsersOnDelete)){
+                                                        header("HTTP/1.0 200 OK");
+                                                        $response['status'] = true;
+                                                        $response['errors'] = "";
+                                                    }else{
+                                                        header("HTTP/1.0 500 Internal Server Error");
+                                                        $response['status'] = false;
+                                                        $response['errors'] = "An Error Occurred While Trying To Delete The Class.";
+                                                    }
+                                                }
+                                            }else{
                                                 header("HTTP/1.0 403 Forbidden");
                                                 $response['status'] = false;
-                                                $response['errors'] = "Class 0 is protected at a code level.";
-                                            }else{
-                                                if($classFunctions->DeleteClass($classID, $settings->resetUsersOnDelete)){
-                                                    header("HTTP/1.0 200 OK");
-                                                    $response['status'] = true;
-                                                    $response['errors'] = "";
-                                                }else{
-                                                    header("HTTP/1.0 500 Internal Server Error");
-                                                    $response['status'] = false;
-                                                    $response['errors'] = "An Error Occurred While Trying To Delete The Class.";
-                                                }
+                                                $response['errors'] = "Permission Denied";
                                             }
                                         }else{
-                                            header("HTTP/1.0 403 Forbidden");
+                                            header("HTTP/1.0 401 Unauthorized");;
                                             $response['status'] = false;
-                                            $response['errors'] = "Permission Denied";
+                                            $response['errors'] = "Invalid Token";
                                         }
                                     }else{
-                                        header("HTTP/1.0 401 Unauthorized");;
+                                        header("HTTP/1.0 400 Bad Request");
                                         $response['status'] = false;
-                                        $response['errors'] = "Invalid Token";
+                                        $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
                                     }
                                 }else{
                                     header("HTTP/1.0 400 Bad Request");
-                                    $response['status'] = false;
-                                    $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
+                                    $response["errors"] = "Malformed request";
                                 }
-                            }else{
-                                header("HTTP/1.0 400 Bad Request");
-                                $response["errors"] = "Malformed request";
                             }
+                        }else{
+                            header("HTTP/1.0 400 Bad Request");
+                            $response["errors"] = "Missing Parameters";
                         }
                     break;
     
@@ -295,53 +336,94 @@ try{
             case "user":
                 switch($_SERVER['REQUEST_METHOD']){
                     case "GET":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
-                            if(isset($_SERVER['HTTP_X_API_KEY'])){
-                                $AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
-                    
-                                $isValid = $authToken->isTokenValid($AcessToken);
-                    
-                                if($isValid){
-                                    if($userFunctions->isUserAdmin($isValid)){
-                                        $list = $userFunctions->GetUserList();
-                                        if($list){
-                                            header("HTTP/1.0 200 OK");
-                                            $response['status'] = true;
-                                            $response['errors'] = "";
-                                            $response['contents'] = $list;
+                        if(isset($uri[$opertation+1])){
+                            if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                                if(isset($_SERVER['HTTP_X_API_KEY'])){
+                                    $AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                        
+                                    $isValid = $authToken->isTokenValid($AcessToken);
+                        
+                                    if($isValid){
+                                        if($userFunctions->isUserAdmin($isValid)){
+                                            $list = $userFunctions->GetUserList();
+                                            if($list){
+                                                header("HTTP/1.0 200 OK");
+                                                $response['status'] = true;
+                                                $response['errors'] = "";
+                                                $response['contents'] = $list;
+                                            }else{
+                                                header("HTTP/1.0 500 Internal Server Error");
+                                                $response['status'] = false;
+                                                $response['errors'] = "An Error Occurred While Trying To Retrive The List";
+                                            }
                                         }else{
-                                            header("HTTP/1.0 500 Internal Server Error");
+                                            header("HTTP/1.0 403 Forbidden");
                                             $response['status'] = false;
-                                            $response['errors'] = "An Error Occurred While Trying To Retrive The List";
+                                            $response['errors'] = "Permission Denied.";
                                         }
                                     }else{
-                                        header("HTTP/1.0 403 Forbidden");
+                                        header("HTTP/1.0 401 Unauthorized");
                                         $response['status'] = false;
-                                        $response['errors'] = "Permission Denied.";
+                                        $response['errors'] = "Invalid Token";
                                     }
                                 }else{
-                                    header("HTTP/1.0 401 Unauthorized");
+                                    header("HTTP/1.0 400 Bad Request");
                                     $response['status'] = false;
-                                    $response['errors'] = "Invalid Token";
+                                    $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
                                 }
                             }else{
-                                header("HTTP/1.0 400 Bad Request");
-                                $response['status'] = false;
-                                $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
+                                if(is_numeric($uri[$opertation+1])){
+                                    if(isset($_SERVER['HTTP_X_API_KEY'])){
+                                        $AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
+                                        $userID = mysqli_real_escape_string($connection, $uri[$opertation+1]);
+
+                                        $isValid = $authToken->isTokenValid($AcessToken);
+                            
+                                        if($isValid){
+                                            if($userFunctions->isUserAdmin($isValid)){
+                                                $list = $userFunctions->GetUser($userID);
+                                                if($list){
+                                                    header("HTTP/1.0 200 OK");
+                                                    $response['status'] = true;
+                                                    $response['errors'] = "";
+                                                    $response['contents'] = $list;
+                                                }else{
+                                                    header("HTTP/1.0 500 Internal Server Error");
+                                                    $response['status'] = false;
+                                                    $response['errors'] = "An Error Occurred While Trying To Retrive The List";
+                                                }
+                                            }else{
+                                                header("HTTP/1.0 403 Forbidden");
+                                                $response['status'] = false;
+                                                $response['errors'] = "Permission Denied.";
+                                            }
+                                        }else{
+                                            header("HTTP/1.0 401 Unauthorized");
+                                            $response['status'] = false;
+                                            $response['errors'] = "Invalid Token";
+                                        }
+                                    }else{
+                                        header("HTTP/1.0 400 Bad Request");
+                                        $response['status'] = false;
+                                        $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
+                                    } 
+                                }else{
+                                    header("HTTP/1.0 400 Bad Request");
+                                    $response["errors"] = "Malformed request";
+                                }
                             }
                         }else{
-                            if(is_numeric($uri[$opertation+1])){
-                                //TODO: get user info by id
-                                header("HTTP/1.0 501 Not Implemented");
-                            }else{
-                                header("HTTP/1.0 400 Bad Request");
-                                $response["errors"] = "Malformed request";
-                            }
+                            header("HTTP/1.0 400 Bad Request");
+                            $response['status'] = false;
+                            $response['errors'] = "Missing Parameters";
                         }
                     break;
     
                     case "POST":
-                        if(is_null($uri[$opertation+1]) || empty($uri[$opertation+1])){
+                        if(isset($uri[$opertation+1])){
+                            header("HTTP/1.0 Bad Request");
+                            $response["errors"] = "Malformed request";
+                        }else{
                             if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($_POST['username'])) || (!isset($_POST['displayName'])) || (!isset($_POST['classID'])) || (!isset($_POST['admin'])) || (!isset($_POST['deletionProtection']))){
                                 $AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
                     
@@ -378,33 +460,35 @@ try{
                                 $response['status'] = false;
                                 $response['errors'] = "Não foi possivel utilizar os dados para autenticação. (Talvez transição HTTP para HTTPS)";
                             }
-                        }else{
-                            header("HTTP/1.0 Bad Request");
-                            $response["errors"] = "Malformed request";
                         }
                     break;
     
                     case "PUT":
                         if(is_numeric($uri[$opertation+1]) && $uri[$opertation+2] === "changepassword"){
                             // TODO: Change password
+                            if(isset($_SERVER['HTTP_X_API_KEY'])){
+
+                            }
                         }else if(is_numeric($uri[$opertation+1])){
-                            if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($_POST['userID'])) || (isset($_POST['username'])) || (!isset($_POST['displayName'])) || (!isset($_POST['classID'])) || (!isset($_POST['admin'])) || (!isset($_POST['deletionProtection']))){
+                            // https://lornajane.net/posts/2008/accessing-incoming-put-data-from-php
+                            $PUT_vars = parse_str(file_get_contents("php://input"), $PUT_vars);
+                            if((isset($_SERVER['HTTP_X_API_KEY'])) || (isset($PUT_vars['username'])) || (!isset($PUT_vars['displayName'])) || (!isset($PUT_vars['classID'])) || (!isset($PUT_vars['admin'])) || (!isset($PUT_vars['deletionProtection']))){
                                 $AcessToken = mysqli_real_escape_string($connection, $_SERVER['HTTP_X_API_KEY']);
                     
                                 $isValid = $authTokens->isTokenValid($AcessToken);
                     
                                 if($isValid){
-                                    $username = base64_decode($_POST['username']);
+                                    $username = base64_decode($PUT_vars['username']);
                                     $username = mysqli_real_escape_string($connection, $username);
-                                    $displayName = base64_decode($_POST['displayName']);
+                                    $displayName = base64_decode($PUT_vars['displayName']);
                                     $displayName = mysqli_real_escape_string($connection, $displayName);
-                                    $classID = base64_decode($_POST['classID']);
+                                    $classID = base64_decode($PUT_vars['classID']);
                                     $classID = mysqli_real_escape_string($connection, $classID);
-                                    $isAdmin = mysqli_real_escape_string($connection, $_POST['admin']);
+                                    $isAdmin = mysqli_real_escape_string($connection, $PUT_vars['admin']);
                                     $isAdmin = (($isAdmin == "true" || $isAdmin == "True" || $isAdmin === true) ? true : false);
-                                    $isDeletionProtected = mysqli_real_escape_string($connection, $_POST['deletionProtection']);
+                                    $isDeletionProtected = mysqli_real_escape_string($connection, $PUT_vars['deletionProtection']);
                                     $isDeletionProtected = (($isDeletionProtected == "true" || $isDeletionProtected == "True" || $isDeletionProtected === true) ? true : false);
-                                    $userID = mysqli_real_escape_string($connection, $_POST['userID']);
+                                    $userID = mysqli_real_escape_string($connection, $uri[$opertation+1]);
                     
                                     if($UserFunctions->EditUser($username, $displayName, $classID, $isAdmin, $isDeletionProtected, $userID)){
                                         header("HTTP/1.0 200 OK");

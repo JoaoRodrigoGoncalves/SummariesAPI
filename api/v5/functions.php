@@ -322,7 +322,35 @@ class UserFunctions{
 			throw new Exception("GULERR: " . mysqli_error($connection));
 		}
 		return false;
-	}
+    }
+    
+    /**
+     * Retrives the specified user information from the databse
+     * @param int $userID The user ID to fetch from the database
+     * @return mixed User info, false if an error occurs
+     */
+    function GetUser($userID){
+        $connection = databaseConnect();
+
+        $query = "SELECT id, user, displayName, classID, adminControl, isDeletionProtected FROM users WHERE id=$userID LIMIT 1";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            while($row = mysqli_fetch_row($run, MYSQLI_ASSOC)){
+                $list['user'] = $row['user'];
+                $list['userid'] = $row['id'];
+                $list['displayName'] = $row['displayName'];
+                $list['className'] = $row['classID'];
+                $list['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
+				$list['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
+            }
+            mysqli_free_result($run);
+            return $list;
+        }else{
+            mysqli_free_result($run);
+            throw new Exception("GUERR: " . mysqli_error($connection));
+        }
+        return false;
+    }
 
 }
 
@@ -377,6 +405,35 @@ class ClassFunctions{
         }else{
             mysqli_free_result($run);
             throw new Exception("LSTCLS: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Retrives the information about the specified class
+     * @param int $id The class ID
+     * @return mixed Class info, false if an error is thrown
+     */
+    function GetClass($id){
+        if(is_numeric($id)){
+            $connection = databaseConnect();
+
+            $query = "SELECT classesList.*, (SELECT COUNT(*) FROM users WHERE users.classID=classesList.id) AS totalUsers FROM classesList WHERE id=$id";
+            $run = mysqli_query($connection, $query);
+            if($run){
+                $i = 0;
+                while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
+                    $list[$i]['classID'] = $row['id'];
+                    $list[$i]['className'] = $row['name'];
+                    $list[$i]['totalUsers'] = $row['totalUsers'];
+                    $i++;
+                }
+                mysqli_free_result($run);
+                return $list;
+            }else{
+                mysqli_free_result($run);
+                throw new Exception("LSTCLS: " . mysqli_error($connection));
+            }
         }
         return false;
     }

@@ -13,17 +13,17 @@
 
 /api/v5/user/                                                                                       [GET]
 /api/v5/user/<user id>                                                                              [GET]
-/api/v5/user/<user id>/workspace/<workspace id>/summary                                             [GET]
-/api/v5/user/<user id>/workspace/<workspace id>/summary/<summary id>                                [GET]
-/api/v5/user/<user id>/workspace/<workspace id>/summary/<summary id>/files                          [GET]
-/api/v5/user/<user id>/workspace/<workspace id>/summary/<summary id>/files/<file>                   [GET]
-/api/v5/user/<user id>/workspace/<workspace id>/summary                                             [POST]
+/api/v5/user/<user id>/<workspace id>/summary                                                       [GET]
+/api/v5/user/<user id>/<workspace id>/summary/<summary id>                                          [GET]
+/api/v5/user/<user id>/<workspace id>/summary/<summary id>/files                                    [GET]
+/api/v5/user/<user id>/<workspace id>/summary/<summary id>/files/<file>                             [GET]
+/api/v5/user/<user id>/<workspace id>/summary                                                       [POST]
 /api/v5/user/                                                                                       [POST]
 /api/v5/user/<user id>                                                                              [PUT]
 /api/v5/user/<user id>/changepassword                                                               [PUT]
-/api/v5/user/<user id>/workspace/<workspace id>/summary/<summary id>                                [PUT]
+/api/v5/user/<user id>/<workspace id>/summary/<summary id>                                [PUT]
 /api/v5/user/<user id>                                                                              [DELETE]
-/api/v5/user/<user id>/workspace/<workspace id>/summary/<summary id>                                [DELETE]
+/api/v5/user/<user id>/<workspace id>/summary/<summary id>                                [DELETE]
 
 
 

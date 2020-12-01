@@ -173,7 +173,28 @@ class UserFunctions{
 			throw new Exception("PSWCHK: " . mysqli_error($connection));
 		}
 		return false;
-	}
+    }
+    
+    /**
+     * Checks if user exists
+     * @param int $userID The ID of the user to be checked
+     * @return bool True if user exists, false otherwise.
+     */
+    function UserExists($userID){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT id FROM users WHERE id=$userID LIMIT 1");
+        if($query){
+            if(mysqli_num_rows($query) == 1){
+                mysqli_free_result($query);
+                return true;
+            }
+        }else{
+            mysqli_free_result($query);
+            throw new Exception("USRCHK: " . mysqli_error($connection));
+        }
+        return false;
+    }
 
     /**
      * Updates password of the specified user
@@ -501,6 +522,27 @@ class ClassFunctions{
 class WorkspaceFunctions{
 
     /**
+     * Check if the Workspace Exists
+     * @param int $workspaceID WorkspaceID to be checked
+     * @return boolean True if the workspace exists, false otherwise
+     */
+    function WorkspaceExists($workspaceID){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT id FROM workspaces WHERE id=$workspaceID");
+        if($query){
+            if(mysqli_num_rows($query) == 1){
+                mysqli_free_result($query);
+                return true;
+            }
+        }else{
+            mysqli_free_result($query);
+            throw new Exception("WRKCHK:" . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
      * Retrieves a list of workspaces from the database
      * @return mixed List of classes, false if an error occurs
      */
@@ -624,6 +666,7 @@ class SummaryFunctions{
 
     /**
      * Finds a summary given an userID, summaryID and workspaceID
+     * Also can be used to determine if the summary exists
      * @param int $userID The ID of the user
      * @param int $summaryID The ID of the summary to search for
      * @param int $workspaceID The ID of the workspace
@@ -634,8 +677,10 @@ class SummaryFunctions{
 
         $getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE userid='$userID' AND summaryNumber='$summaryID' AND workspace='$workspaceID' LIMIT 1");
         if($getSummaryInfo){
-            while($row = mysqli_fetch_array($getSummaryInfo, MYSQLI_ASSOC)){
-                return $row['id'];
+            if(mysqli_num_rows($getSummaryInfo) == 1){
+                while($row = mysqli_fetch_array($getSummaryInfo, MYSQLI_ASSOC)){
+                    return $row['id'];
+                }
             }
         }else{
             mysqli_free_result($getSummaryInfo);
@@ -877,6 +922,76 @@ class FilesFunctions{
             if($type==$settings->blockedFiles[$i]){
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if Given File Name Exists in the context of given summary
+     * @param string $fileName
+     * @param int $summaryRowID The database summary row ID
+     * @return boolean True if file exists, false otherwise
+     */
+    function FileExists($fileName, $summaryRowID){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryRowID LIMIT 1");
+        if($query){
+            if(mysqli_num_rows($query) == 1){
+                return true;
+            }
+        }else{
+            throw new Exception("FILCHK:" . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Returns the path of the file
+     * @param string $fileName The name of the file to get the path of
+     * @param int $summaryRowID The database summary row ID
+     * @return mixed String with path, false if any errors are found.
+     */
+    function GetPath($fileName, $summaryRowID){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT path FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryRowID LIMIT 1");
+        if($query){
+            if(mysqli_num_rows($query) == 1){
+                while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
+                    return $row['path'];
+                }
+            }
+        }else{
+            throw new Exception("GETPTH: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Retrives the list of files associated with the given summary ID
+     * @param int $summaryID Database Row ID
+     * @return mixed List of associated files, false otherwise
+     */
+    function GetFilesList($summaryID){
+        $connection = databaseConnect();
+        
+        $query = mysqli_query($connection, "SELECT filename, path FROM attachmentMapping WHERE summaryID=$summaryID");
+        if($query){
+            if(mysqli_num_rows($query) > 0){
+                $list = null;
+                $i = 0;
+                while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
+                    $list[$i]['filename'] = $row['filename'];
+                    $list[$i]['path'] = $row['path'];
+                    $i++;
+                }
+                return $list;
+            }else{
+                return "";
+            }
+        }else{
+            throw new Exception("FILGET: " . mysqli_error($connection));
         }
         return false;
     }

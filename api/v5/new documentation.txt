@@ -5,6 +5,7 @@
 
 /api/v5/class/                                                                                      [GET]
 /api/v5/class/<class id>                                                                            [GET]
+/api/v5/class/<class id>/users                                                                      [GET]
 /api/v5/class/                                                                                      [POST]
 /api/v5/class/<class id>                                                                            [PUT]
 /api/v5/class/<class id>                                                                            [DELETE]
@@ -21,6 +22,7 @@
 /api/v5/user/                                                                                       [POST]
 /api/v5/user/<user id>                                                                              [PUT]
 /api/v5/user/<user id>/changepassword                                                               [PUT]
+/api/v5/user/<user id>/changepassword/reset                                                         [PUT]
 /api/v5/user/<user id>/<workspace id>/summary/<summary id>                                [PUT]
 /api/v5/user/<user id>                                                                              [DELETE]
 /api/v5/user/<user id>/<workspace id>/summary/<summary id>                                [DELETE]

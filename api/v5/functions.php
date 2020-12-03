@@ -575,6 +575,39 @@ class WorkspaceFunctions{
     }
 
     /**
+     * Retrieves the solicited workspace info from the database
+     * @param int $workspaceID ID of the workspace
+     * @return mixed List of classes, false if an error occurs
+     */
+    function GetWorkspace($workspaceID){
+        $connection = databaseConnect();
+
+        $query = "SELECT workspaces.*, (SELECT COUNT(*) FROM summaries WHERE summaries.workspace=workspaces.id) AS totalSummaries FROM workspaces WHERE workspaces.id=$workspaceID";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            if(mysqli_num_rows($run) > 0){
+                $i = 0;
+                while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
+                    $list[$i]['id'] = $row['id'];
+                    $list[$i]['name'] = $row['name'];
+                    $list[$i]['read'] = ($row['read'] == 1 ? true : false);
+                    $list[$i]['write'] = ($row['write'] == 1 ? true : false);
+                    $list[$i]['totalSummaries'] = $row['totalSummaries'];
+                    $i++;
+                }
+                mysqli_free_result($run);
+                return $list;
+            }
+            mysqli_free_result($run);
+            return null;
+        }else{
+            mysqli_free_result($run);
+            throw new Exception("WRKLST: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
      * Adds/Edits a workspace
      * @param string $name The name of the workspace
      * @param bool $readMode Whether the users are allowed to read the contents of this workspace

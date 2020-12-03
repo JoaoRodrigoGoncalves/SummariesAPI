@@ -46,6 +46,12 @@ $customErrorHandler = function (Psr\Http\Message\ServerRequestInterface $request
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
 $errorMiddleware->setDefaultErrorHandler($customErrorHandler);
 
+if(!CheckIfSecure()){
+    header("HTTP/1.0 400 Bad Request");
+    $customResponse['errors'] = "Connection Must Be Made With HTTPS";
+    exit();
+}
+
 /**
  * Login
  * Method -> POST
@@ -1167,11 +1173,53 @@ $app->put('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $summaryFunctions = new SummaryFunctions();
+    $params = (array)$request->getParsedBody();
+
     if($response->hasHeader('HTTP_X_API_KEY')){
         $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
-            
+            $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
+            if($userID == $requestedUser){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID); 
+                    if($rowID){
+                        $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
+                        if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
+                            $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
+                            if($summaryFunctions->EditSummary(true, $requestedUser, $summaryID, $workspaceID, $date, $bodyText, $rowID)){
+                                $customResponse['status'] = true;
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(200);
+                            }else{
+                                $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(500);
+                            }
+                        }else{
+                            $customResponse['errors'] = "Invalid Date Syntax";
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(400);
+                        }
+                    }else{
+                        $customResponse['errors'] = "Summary Not Found";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(404);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
         }else{
             $customResponse['errors'] = "Authentication Failed";
             $response->getBody()->write(json_encode($customResponse));
@@ -1187,27 +1235,122 @@ $app->put('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
 /**
  * Delete User
  * Method -> DELETE
- * Parameters -> id
+ * Parameters -> userID
  */
 
-$app->delete('/user/{id}', function(Request $request, Response $response, array $agrs){
+$app->delete('/user/{userID}', function(Request $request, Response $response, array $args){
     global $customResponse;
-
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    $connection = databaseConnect();
+    $userFunctions = new UserFunctions();
+    $authTokens = new AuthTokens();
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
+            if($userFunctions->isUserAdmin($userID)){
+                if($userID == $requestedUser){
+                    $customResponse['errors'] = "You cannot delete yourself";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(406);
+                }else{
+                    if($userFunctions->UserExists($requestedUser)){
+                        if($userFunctions->isUserDeletionProtected($requestedUser)){
+                            $customResponse['errors'] = "User is Deletion Protected";
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(406);
+                        }else{
+                            if($userFunctions->DeleteUser($requestedUser)){
+                                $customResponse['status'] = true;
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(200);
+                            }else{
+                                $customResponse['errors'] = "An Error Occurred While Trying to Delete the User";
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(500);
+                            }
+                        }
+                    }else{
+                        $customResponse['errors'] = "User Not Found";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(404);
+                    }
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
  * Delete a Summary
  * Method -> DELETE
- * Parameters -> id, workspaceID, summaryID
+ * Parameters -> userID, workspaceID, summaryID
  */
 
-$app->delete('/user/{id}/workspace/{workspaceID}/summary/{summaryID}', function(Request $request, Response $response, array $agrs){
+$app->delete('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $summaryFunctions = new SummaryFunctions();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
+            if($userID == $requestedUser){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
+                    if($rowID){
+                        if($summaryFunctions->DeleteSummaries($rowID)){
+                            $customResponse['status'] = true;
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(200);
+                        }else{
+                            $customResponse['errors'] = "An Error Occurred While Trying to Delete the Summary";
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(500);
+                        }
+                    }else{
+                        $customResponse['errors'] = "Summary Not Found";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(404);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }     
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /////////////////////////////////////////////
@@ -1223,22 +1366,81 @@ $app->delete('/user/{id}/workspace/{workspaceID}/summary/{summaryID}', function(
 
 $app->get('/workspace', function(Request $request, Response $response, array $agrs){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $list = $workspaceFunctions->GetWorkspaceList();
+            if($list){
+                $customResponse['status'] = true;
+                $customResponse['contents'] = $list;
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(200);
+            }else{
+                $customResponse['errors'] = "An Error Occurred While Trying to Get the List of Workspaces";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(500);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
  * Get Workspace By id
  * Method -> GET
- * Parameters -> id 
+ * Parameters -> workspaceID 
  */
 
-$app->get('/workspace/{workspaceID}', function(Request $request, Response $response, array $agrs){
+$app->get('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+            if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                $contents = $workspaceFunctions->GetWorkspace($workspaceID);
+                if($contents){
+                    $customResponse['status'] = true;
+                    $customResponse['contents'] = $contents;
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(200);
+                }else{
+                    $customResponse['errors'] = "An Error Occurred While Trying to Fetch the Workspace Details";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(500);
+                }
+            }else{
+                $customResponse['errors'] = "Workspace Not Found";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(404);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
@@ -1249,9 +1451,47 @@ $app->get('/workspace/{workspaceID}', function(Request $request, Response $respo
 
 $app->post('/workspace', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $userFunctions = new UserFunctions();
+    $params = (array)$request->getParsedBody();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            if($userFunctions->isUserAdmin($userID)){
+                $name = mysqli_real_escape_string($connection, $params['name']);
+                $readMode = mysqli_real_escape_string($connection, $params['readMode']);
+                $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
+                $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
+                $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
+
+                if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode)){
+                    $customResponse['status'] = true;
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(200);
+                }else{
+                    $customResponse['errors'] = "An Error Occurred While Trying to Create the Workspace";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(500);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
@@ -1260,11 +1500,55 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
  * Parameters -> workspaceID, name, readMode, writeMode
  */
 
-$app->put('/workspace/{workspaceID}', function(Request $request, Response $response, array $agrs){
+$app->put('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $params = (array)$request->getParsedBody();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            if($userFunctions->isUserAdmin($userID)){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    $name = mysqli_real_escape_string($connection, $params['name']);
+                    $readMode = mysqli_real_escape_string($connection, $params['readMode']);
+                    $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
+                    $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
+                    $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
+                    if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode, $workspaceID)){
+                        $customResponse['status'] = true;
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(200);
+                    }else{
+                        $customResponse['errors'] = "An Error Occurred While Trying to Edit the Workspace";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(500);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
@@ -1273,11 +1557,55 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
  * Parameters -> worksapceID
  */
 
-$app->delete('workspace/{workspaceID}', function(Request $request, Response $response, array $agrs){
+$app->delete('workspace/{workspaceID}', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $userFunctions = new UserFunctions();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            if($userFunctions->isUserAdmin($userID)){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    if(isset($args['d'])){
+                        $flushSummaries = ($args['d'] == "true" || $args['d'] == "True" ? true : false);
+                    }else{
+                        $flushSummaries = false;
+                    }
+
+                    if($workspaceFunctions->DeleteWorkspace($workspaceID, $flushSummaries)){
+                        $customResponse['status'] = true;
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(200);
+                    }else{
+                        $customResponse['errors'] = "An Error Occurred While Trying To Delete the Workspace";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(500);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 /**
@@ -1286,11 +1614,49 @@ $app->delete('workspace/{workspaceID}', function(Request $request, Response $res
  * Parameters -> workspaceID
  */
 
-$app->delete('/workspace/{workspaceID}/flush', function(Request $request, Response $response, array $agrs){
+$app->delete('/workspace/{workspaceID}/flush', function(Request $request, Response $response, array $args){
     global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
+    $workspaceFunctions = new WorkspaceFunctions();
 
-    $response->getBody()->write(json_encode($customResponse));
-    return $customResponse;
+    if($response->hasHeader('HTTP_X_API_KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            if($userFunctions->isUserAdmin($userID)){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    if($workspaceFunctions->FlushWorkspace($workspaceID)){
+                        $customResponse['status'] = true;
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(200);
+                    }else{
+                        $customResponse['errors'] = "An Error Occurred While Trying to Flush the Workspace";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(500);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
 });
 
 $app->run();

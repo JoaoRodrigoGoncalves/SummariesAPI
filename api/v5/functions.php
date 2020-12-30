@@ -133,7 +133,7 @@ class AuthTokens{
         }
         $delete = mysqli_query($connection, "DELETE FROM AccessTokens WHERE token='$token'");
         if($delete){
-            if(mysqli_affected_rows($delete) > 0){
+            if(mysqli_affected_rows($connection) == 1){
                 mysqli_free_result($delete);
                 return true;
             }
@@ -328,10 +328,10 @@ class UserFunctions{
 		if($run){
 			$i = 0;
 			while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-				$list[$i]['user'] = $row['user'];
 				$list[$i]['userid'] = $row['id'];
+				$list[$i]['user'] = $row['user'];
 				$list[$i]['displayName'] = $row['displayName'];
-				$list[$i]['className'] = $row['classID'];
+				$list[$i]['classID'] = $row['classID'];
 				$list[$i]['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
 				$list[$i]['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
 				$i++;
@@ -356,13 +356,13 @@ class UserFunctions{
         $query = "SELECT id, user, displayName, classID, adminControl, isDeletionProtected FROM users WHERE id=$userID LIMIT 1";
         $run = mysqli_query($connection, $query);
         if($run){
-            while($row = mysqli_fetch_row($run, MYSQLI_ASSOC)){
-                $list['user'] = $row['user'];
-                $list['userid'] = $row['id'];
-                $list['displayName'] = $row['displayName'];
-                $list['className'] = $row['classID'];
-                $list['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
-				$list['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
+            while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
+                $list[0]['userid'] = $row['id'];
+                $list[0]['user'] = $row['user'];
+                $list[0]['displayName'] = $row['displayName'];
+                $list[0]['classID'] = $row['classID'];
+                $list[0]['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
+                $list[0]['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
             }
             mysqli_free_result($run);
             return $list;
@@ -439,15 +439,13 @@ class ClassFunctions{
         if(is_numeric($id)){
             $connection = databaseConnect();
 
-            $query = "SELECT classesList.*, (SELECT COUNT(*) FROM users WHERE users.classID=classesList.id) AS totalUsers FROM classesList WHERE id=$id";
+            $query = "SELECT classesList.*, (SELECT COUNT(*) FROM users WHERE users.classID=classesList.id) AS totalUsers FROM classesList WHERE classesList.id=$id LIMIT 1";
             $run = mysqli_query($connection, $query);
             if($run){
-                $i = 0;
                 while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-                    $list[$i]['classID'] = $row['id'];
-                    $list[$i]['className'] = $row['name'];
-                    $list[$i]['totalUsers'] = $row['totalUsers'];
-                    $i++;
+                    $list[0]['classID'] = $row['id'];
+                    $list[0]['className'] = $row['name'];
+                    $list[0]['totalUsers'] = $row['totalUsers'];
                 }
                 mysqli_free_result($run);
                 return $list;
@@ -556,7 +554,7 @@ class WorkspaceFunctions{
                 $i = 0;
                 while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
                     $list[$i]['id'] = $row['id'];
-                    $list[$i]['name'] = $row['name'];
+                    $list[$i]['workspaceName'] = $row['name'];
                     $list[$i]['read'] = ($row['read'] == 1 ? true : false);
                     $list[$i]['write'] = ($row['write'] == 1 ? true : false);
                     $list[$i]['totalSummaries'] = $row['totalSummaries'];
@@ -589,7 +587,7 @@ class WorkspaceFunctions{
                 $i = 0;
                 while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
                     $list[$i]['id'] = $row['id'];
-                    $list[$i]['name'] = $row['name'];
+                    $list[$i]['workspaceName'] = $row['name'];
                     $list[$i]['read'] = ($row['read'] == 1 ? true : false);
                     $list[$i]['write'] = ($row['write'] == 1 ? true : false);
                     $list[$i]['totalSummaries'] = $row['totalSummaries'];

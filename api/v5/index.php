@@ -14,6 +14,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 $app = AppFactory::create();
 $app->setBasePath('/summaries/api/v5');
+$app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 
 $customResponse['status'] = false;
@@ -65,8 +66,8 @@ $app->post('/login', function (Request $request, Response $response, array $args
     $params = (array)$request->getParsedBody();
     
     if(isset($params['usrnm']) && isset($params['psswd'])){
-        $user = mysqli_real_escape_string($connection, $params['usrnm']);
-        $password = mysqli_real_escape_string($connection, $params['psswd']);
+        $user = mysqli_real_escape_string($connection, base64_decode($params['usrnm']));
+        $password = mysqli_real_escape_string($connection, base64_decode($params['psswd']));
         $query = "SELECT * FROM users WHERE user='$user' LIMIT 1";
         $run = mysqli_query($connection, $query);
         if($run){
@@ -119,9 +120,9 @@ $app->get('/logout', function (Request $request, Response $response, array $args
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
-
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($authTokens->DeleteToken($AccessToken)){
@@ -162,8 +163,8 @@ $app->get('/class', function(Request $request, Response $response, array $args){
     $authTokens = new AuthTokens();
     $classFunctions = new ClassFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $list = $classFunctions->GetClassList();
@@ -201,8 +202,8 @@ $app->get('/class/{classID}', function(Request $request, Response $response, arr
     $authTokens = new AuthTokens();
     $classFunctions = new ClassFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $classID = mysqli_real_escape_string($connection, $args['classID']);
@@ -249,37 +250,44 @@ $app->get('/class/{classID}/users', function(Request $request, Response $respons
     $authTokens = new AuthTokens();
     $classFunctions = new ClassFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $classID = mysqli_real_escape_string($connection, $args['classID']);
             if($classFunctions->ClassExists(null, $classID)){
-                $query = mysqli_query($connection, "SELECT id FROM users WHERE classID=$classID");
+                $query = mysqli_query($connection, "SELECT id, user, displayName, classID, AdminControl, isDeletionProtected FROM users WHERE classID=$classID");
                 if($query){
                     if(mysqli_num_rows($query) > 0){
                         $list = null;
+                        $i = 0;
                         while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
-                            $list[] = $row['id'];
+                            $list[$i]['userid'] = $row['id'];
+                            $list[$i]['user'] = $row['user'];
+                            $list[$i]['displayName'] = $row['displayName'];
+                            $list[$i]['classID'] = $row['classID'];
+                            $list[$i]['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
+                            $list[$i]['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
+                            $i++;
                         }
                         $customResponse['status'] = true;
                         $customResponse['contents'] = $list;
-                        $response->getBody()->write(json_encode($response));
+                        $response->getBody()->write(json_encode($customResponse));
                         return $response->withStatus(200);
                     }else{
                         $customResponse['status'] = true;
                         $customResponse['contents'] = null;
-                        $response->getBody()->write(json_encode($response));
+                        $response->getBody()->write(json_encode($customResponse));
                         return $response->withStatus(200);
                     }
                 }else{
                     $customResponse['errors'] = mysqli_error($connection);
-                    $response->getBody()->write(json_encode($response));
+                    $response->getBody()->write(json_encode($customResponse));
                     return $response->withStatus(500);
                 }
             }else{
                 $customResponse['errors'] = "Class Not Found";
-                $response->getBody()->write(json_encode($response));
+                $response->getBody()->write(json_encode($customResponse));
                 return $response->withStatus(404);
             }
         }else{
@@ -308,13 +316,13 @@ $app->post('/class', function(Request $request, Response $response, array $args)
     $classFunctions = new ClassFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
-                if(isset($params['name'])){
-                    $className = mysqli_real_escape_string($connection, $params['name']);
+                if(isset($params['className'])){
+                    $className = mysqli_real_escape_string($connection, $params['className']);
                     if($classFunctions->EditClass($className)){
                         $customResponse['status'] = true;
                         $response->getBody()->write(json_encode($customResponse));
@@ -360,13 +368,13 @@ $app->put('/class/{classID}', function(Request $request, Response $response, arr
     $classFunctions = new ClassFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
-                if(isset($params['name']) && isset($params['classID'])){
-                    $className = mysqli_real_escape_string($connection, $params['name']);
+                if(isset($params['className'])){
+                    $className = mysqli_real_escape_string($connection, $params['className']);
                     $classID = mysqli_real_escape_string($connection, $args['classID']);
                     if($classFunctions->ClassExists(null, $classID)){
                         if($classFunctions->EditClass($className, $classID)){
@@ -408,17 +416,17 @@ $app->put('/class/{classID}', function(Request $request, Response $response, arr
 /**
  * Delete Class
  * Method -> DELETE
- * Parameters -> id
+ * Parameters -> classID
  */
 
-$app->delete('/class/{id}', function(Request $request, Response $response, array $args){
+$app->delete('/class/{classID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
     $classFunctions = new ClassFunctions();
     $userFunctions = new UserFunctions();
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -467,8 +475,8 @@ $app->get('/user', function(Request $request, Response $response, array $args){
     $authTokens = new AuthTokens();
     $userFunctions = new UserFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -511,8 +519,8 @@ $app->get('/user/{userID}', function(Request $request, Response $response, array
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
     $userFunctions = new UserFunctions();
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -564,18 +572,18 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary', function(Request $re
     $userFunctions = new UserFunctions();
     $workspaceFunctions = new WorkspaceFunctions();
     $summaryFunctions = new SummaryFunctions();
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
             if($userFunctions->isUserAdmin($userID) || $userID==$requestedUser){
                 if($userFunctions->UserExists($requestedUser)){
                     $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                    if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    if($workspaceFunctions->WorkspaceExists($workspaceID) || $workspaceID == 0){
                         $list = $summaryFunctions->GetSummariesList($requestedUser, $workspaceID);
-                        if($list){
-                            $customResponse['stauts'] = true;
+                        if($list || $list == null){
+                            $customResponse['status'] = true;
                             $customResponse['contents'] = $list;
                             $response->getBody()->write(json_encode($customResponse));
                             return $response->withStatus(200);
@@ -624,8 +632,8 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
     $workspaceFunctions = new WorkspaceFunctions();
     $userFunctions = new UserFunctions();
     $filesFunctions = new FilesFunctions();
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -708,8 +716,8 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', fu
     $summaryFunctions = new SummaryFunctions();
     $filesFunctions = new FilesFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -785,8 +793,8 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files/{fil
     $filesFunctions = new FilesFunctions();
     $API_Settings = new API_Settings();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -869,8 +877,8 @@ $app->post('/user', function(Request $request, Response $response, array $args){
     $userFunctions = new UserFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -933,8 +941,8 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
     $summaryFunctions = new SummaryFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if(isset($params['summaryID']) && isset($params['date']) && isset($params['bodyText'])){
@@ -996,6 +1004,108 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
 });
 
 /**
+ * Upload File
+ * Method -> POST
+ * Parameters -> userID, workspaceID, summaryID, FILE
+ */
+$app->post('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', function(Request $request, Response $response, array $args){
+    global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
+    $workspaceFunctions = new WorkspaceFunctions();
+    $summaryFunctions = new SummaryFunctions();
+    $filesFunctions = new FilesFunctions();
+    $settings = new API_Settings();
+
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
+            if($userID==$requestedUser){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
+                    if($rowID){
+                        if($_FILES["file"]["error"] == UPLOAD_ERR_OK){
+                            $tmp_name = $_FILES["file"]["tmp_name"];
+                            $fileName = $_FILES["file"]["name"];
+        
+                            $explodedName = explode("/", $tmp_name);
+                            $filetype = explode(".", $fileName);
+        
+                            if($filesFunctions->isFileTypeBlocked($filetype[count($filetype)-1]) || $_FILES["file"]["size"] > $settings->maxFileSize){
+                                $customResponse['errors'] = "File type not allowed or is too large!";
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(406);
+                            }else{
+                                $finalFileName = sha1_file($tmp_name) . sha1(time());
+                                move_uploaded_file($tmp_name, ROOT_FOLDER . "/" . $settings->filesPath . $finalFileName);
+                                $storedpath = mysqli_real_escape_string($connection, $settings->filesPath . $finalFileName);
+        
+                                $query = "INSERT INTO attachmentMapping (filename, path) VALUES ('$fileName', '$storedpath')";
+                                $run = mysqli_query($connection, $query);
+                                if($run){
+                                    $getRow = mysqli_query($connection, "SELECT id FROM attachmentMapping WHERE path='$storedpath'");
+                                    if($getRow){
+                                        if(mysqli_num_rows($getRow) > 0){
+                                            while($row = mysqli_fetch_array($getRow, MYSQLI_ASSOC)){
+                                                $customResponse['rowID'] = $row['id'];
+                                            }
+                                            $customResponse['status'] = true;
+                                            $response->getBody()->write(json_encode($customResponse));
+                                            return $response->withStatus(200);
+                                        }else{
+                                            $customResponse['errors'] = "Record not found";~
+                                            $response->getBody()->write(json_encode($customResponse));
+                                            return $response->withStatus(404);
+                                        }
+                                    }else{
+                                        $customResponse['errors'] = mysqli_error($connection);
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(500);
+                                    }
+                                }else{
+                                    $customResponse['errors'] = "Error: " . mysqli_error($connection);
+                                    $response->getBody()->write(json_encode($customResponse));
+                                    return $response->withStatus(500);
+                                }
+                            }
+                        }else{
+                            $customResponse['errors'] = "Upload Error: " . $_FILES["file"]["error"];
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(500);
+                        }
+                    }else{
+                        $customResponse['errors'] = "Summary Not Found";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(404);
+                    }
+                }else{
+                    $customResponse['errors'] = "Workspace Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
+});
+
+/**
  * Edit User
  * Method -> PUT
  * Parameters -> userID, username, displayName, classID, isAdmin, isDeletionProtected
@@ -1008,8 +1118,8 @@ $app->put('/user/{userID}', function(Request $request, Response $response, array
     $userFunctions = new UserFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -1072,8 +1182,8 @@ $app->put('/user/{userID}/changepassword', function(Request $request, Response $
     $userFunctions = new UserFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if(isset($params['oldpasswd']) && isset($params['newpasswd'])){
@@ -1131,8 +1241,8 @@ $app->put('/user/{userID}/changepassword/reset', function(Request $request, Resp
     $authTokens = new AuthTokens();
     $userFunctions = new UserFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -1177,8 +1287,8 @@ $app->put('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
     $summaryFunctions = new SummaryFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -1243,8 +1353,8 @@ $app->delete('/user/{userID}', function(Request $request, Response $response, ar
     $connection = databaseConnect();
     $userFunctions = new UserFunctions();
     $authTokens = new AuthTokens();
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -1306,8 +1416,8 @@ $app->delete('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', funct
     $workspaceFunctions = new WorkspaceFunctions();
     $summaryFunctions = new SummaryFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
@@ -1370,8 +1480,8 @@ $app->get('/workspace', function(Request $request, Response $response, array $ag
     $authTokens = new AuthTokens();
     $workspaceFunctions = new WorkspaceFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $list = $workspaceFunctions->GetWorkspaceList();
@@ -1409,8 +1519,8 @@ $app->get('/workspace/{workspaceID}', function(Request $request, Response $respo
     $authTokens = new AuthTokens();
     $workspaceFunctions = new WorkspaceFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
@@ -1457,12 +1567,12 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
     $userFunctions = new UserFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
-                $name = mysqli_real_escape_string($connection, $params['name']);
+                $name = mysqli_real_escape_string($connection, $params['workspaceName']);
                 $readMode = mysqli_real_escape_string($connection, $params['readMode']);
                 $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
                 $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
@@ -1508,14 +1618,14 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
     $workspaceFunctions = new WorkspaceFunctions();
     $params = (array)$request->getParsedBody();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
                 $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
                 if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                    $name = mysqli_real_escape_string($connection, $params['name']);
+                    $name = mysqli_real_escape_string($connection, $params['workspaceName']);
                     $readMode = mysqli_real_escape_string($connection, $params['readMode']);
                     $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
                     $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
@@ -1564,8 +1674,8 @@ $app->delete('workspace/{workspaceID}', function(Request $request, Response $res
     $workspaceFunctions = new WorkspaceFunctions();
     $userFunctions = new UserFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){
@@ -1621,8 +1731,8 @@ $app->delete('/workspace/{workspaceID}/flush', function(Request $request, Respon
     $userFunctions = new UserFunctions();
     $workspaceFunctions = new WorkspaceFunctions();
 
-    if($response->hasHeader('HTTP_X_API_KEY')){
-        $AccessToken = mysqli_real_escape_string($connection, $response->getHeaderLine('HTTP_X_API_KEY'));
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             if($userFunctions->isUserAdmin($userID)){

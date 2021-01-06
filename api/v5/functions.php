@@ -699,19 +699,60 @@ class SummaryFunctions{
      * Finds a summary given an userID, summaryID and workspaceID
      * Also can be used to determine if the summary exists
      * @param int $userID The ID of the user
-     * @param int $summaryID The ID of the summary to search for
+     * @param int $summaryNumber The number of the summary to search for
      * @param int $workspaceID The ID of the workspace
      * @return mixed Database row ID if operation performes successfully, false otherwise
      */
-    function FindSummary($userID, $summaryID, $workspaceID){
+    function FindSummary($userID, $summaryNumber, $workspaceID){
         $connection = databaseConnect();
 
-        $getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE userid='$userID' AND summaryNumber='$summaryID' AND workspace='$workspaceID' LIMIT 1");
+        $getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE userid='$userID' AND summaryNumber='$summaryNumber' AND workspace='$workspaceID' LIMIT 1");
         if($getSummaryInfo){
             if(mysqli_num_rows($getSummaryInfo) == 1){
                 while($row = mysqli_fetch_array($getSummaryInfo, MYSQLI_ASSOC)){
                     return $row['id'];
                 }
+            }
+        }else{
+            mysqli_free_result($getSummaryInfo);
+            throw new Exception("FNDSUM: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the summary belongs to the provided user
+     * @param int $userID The ID of the user
+     * @param int $summaryID The summary identifier on the database
+     * @return bool True if the provided user "owns" the summary, false otherwise
+     */
+    function CheckSummaryOwnership($userID, $summaryID){
+        $connection = databaseConnect();
+
+        $getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE userid='$userID' AND id='$summaryID' LIMIT 1");
+        if($getSummaryInfo){
+            if(mysqli_num_rows($getSummaryInfo) == 1){
+                return true;
+            }
+        }else{
+            mysqli_free_result($getSummaryInfo);
+            throw new Exception("CHKOWN: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the provided row ID matches any saved summary
+     * @param int $summaryID The summary identifier on the database
+     * @return bool True if the there is any match, false otherwise
+     */
+    function SummaryExists($summaryID){
+        $connection = databaseConnect();
+
+        $getSummaryInfo = mysqli_query($connection, "SELECT id FROM summaries WHERE id='$summaryID' LIMIT 1");
+        if($getSummaryInfo){
+            if(mysqli_num_rows($getSummaryInfo) == 1){
+                return true;
             }
         }else{
             mysqli_free_result($getSummaryInfo);
@@ -748,13 +789,13 @@ class SummaryFunctions{
             if(mysqli_num_rows($run) > 0){
                 $i = 0;
                 while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
-                    $list[$i]['id'] = $row['id'];
+                    $list[$i]['ID'] = $row['id'];
                     $rowID = $row['id'];
-                    $list[$i]['userid'] = $row['userid'];
+                    $list[$i]['userID'] = $row['userid'];
                     $list[$i]['date'] = $row['date'];
                     $list[$i]['summaryNumber'] = $row['summaryNumber'];
-                    $list[$i]['workspace'] = $row['workspace'];
-                    $list[$i]['contents'] = $row['contents'];
+                    $list[$i]['workspaceID'] = $row['workspace'];
+                    $list[$i]['bodyText'] = $row['contents'];
                     $fetchFiles = "SELECT * FROM attachmentMapping WHERE summaryID='$rowID'";
                     $runFetch = mysqli_query($connection, $fetchFiles);
                     if($runFetch){
@@ -791,34 +832,34 @@ class SummaryFunctions{
      * Adds/Edits a summary with the given parameters
      * @param bool $isEdit Specifies if this is an edit operation or a new summary
      * @param int $userID ID of the user who "owns" this summary
-     * @param int $summaryID SummaryID to give/edit to this summary
+     * @param int $summaryNumber SummaryID to give/edit to this summary
      * @param int $workspaceID ID of the workspace this summary makes part of
      * @param string $date Summary date (must be yyyy-mm-dd)
      * @param string $bodyText The text of this summary
-     * @param int|null $databaseRow Database row where the summary is stored (only used if $isEdit is true)
+     * @param int|null $summaryID Database row where the summary is stored (only used if $isEdit is true)
      * @return mixed Returns the database row ID if success, bool false otherwise
      */
-    function EditSummary($isEdit, $userID, $summaryID, $workspaceID, $date, $bodyText, $databaseRow = null){
+    function EditSummary($isEdit, $userID, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID = null){
         $connection = databaseConnect();
         $summaryFunctions = new SummaryFunctions();
 
         if($isEdit){
-            $query = "UPDATE summaries SET date='$date', summaryNumber='$summaryID', workspace='$workspaceID', contents='$bodyText' WHERE id='$databaseRow'";
+            $query = "UPDATE summaries SET date='$date', summaryNumber='$summaryNumber', workspace='$workspaceID', contents='$bodyText' WHERE id='$summaryID'";
         }else{
-            $query = "INSERT INTO summaries (userid, date, summaryNumber, workspace, contents) VALUES ('$userID', '$date', '$summaryID', '$workspaceID', '$bodyText')";
+            $query = "INSERT INTO summaries (userid, date, summaryNumber, workspace, contents) VALUES ('$userID', '$date', '$summaryNumber', '$workspaceID', '$bodyText')";
         }
 
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
                 if($isEdit){
-                    return $databaseRow;
+                    return $summaryID;
                 }else{
-                    return $summaryFunctions->FindSummary($userID, $summaryID, $workspaceID);
+                    return $summaryFunctions->FindSummary($userID, $summaryNumber, $workspaceID);
                 }
             }else{
                 if($isEdit){
-                    return $databaseRow;
+                    return $summaryID;
                 }
             }
         }else{
@@ -898,17 +939,17 @@ class SummaryFunctions{
 
     /**
      * Deletes Summaries and files from the database and fileSystem
-     * @param int $id SummaryID (row) to delete
+     * @param int $summaryID SummaryID (row) to delete
      * @return bool True if operation preformed successfully, false otherwise
      */
-    function DeleteSummaries($id){
+    function DeleteSummaries($summaryID){
         $connection = databaseConnect();
 
-        $delete = "DELETE FROM summaries WHERE id='$id'";
+        $delete = "DELETE FROM summaries WHERE id='$summaryID'";
         $runDelete = mysqli_query($connection, $delete);
         if($runDelete){
             if(mysqli_affected_rows($connection) == 1){
-                $files = "SELECT id, path FROM attachmentMapping WHERE summaryID='$id'";
+                $files = "SELECT id, path FROM attachmentMapping WHERE summaryID='$summaryID'";
                 $fetchFiles = mysqli_query($connection, $files);
                 if($fetchFiles){
                     if(mysqli_num_rows($fetchFiles) > 0){
@@ -960,13 +1001,13 @@ class FilesFunctions{
     /**
      * Checks if Given File Name Exists in the context of given summary
      * @param string $fileName
-     * @param int $summaryRowID The database summary row ID
+     * @param int $summaryID The database summary row ID
      * @return boolean True if file exists, false otherwise
      */
-    function FileExists($fileName, $summaryRowID){
+    function FileExists($fileName, $summaryID){
         $connection = databaseConnect();
 
-        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryRowID LIMIT 1");
+        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryID LIMIT 1");
         if($query){
             if(mysqli_num_rows($query) == 1){
                 return true;
@@ -980,13 +1021,13 @@ class FilesFunctions{
     /**
      * Returns the path of the file
      * @param string $fileName The name of the file to get the path of
-     * @param int $summaryRowID The database summary row ID
+     * @param int $summaryID The database summary row ID
      * @return mixed String with path, false if any errors are found.
      */
-    function GetPath($fileName, $summaryRowID){
+    function GetPath($fileName, $summaryID){
         $connection = databaseConnect();
 
-        $query = mysqli_query($connection, "SELECT path FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryRowID LIMIT 1");
+        $query = mysqli_query($connection, "SELECT path FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryID LIMIT 1");
         if($query){
             if(mysqli_num_rows($query) == 1){
                 while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
@@ -1007,7 +1048,7 @@ class FilesFunctions{
     function GetFilesList($summaryID){
         $connection = databaseConnect();
         
-        $query = mysqli_query($connection, "SELECT filename, path FROM attachmentMapping WHERE summaryID=$summaryID");
+        $query = mysqli_query($connection, "SELECT `filename`, `path` FROM attachmentMapping WHERE summaryID=$summaryID");
         if($query){
             if(mysqli_num_rows($query) > 0){
                 $list = null;

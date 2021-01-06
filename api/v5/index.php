@@ -581,6 +581,7 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary', function(Request $re
                 if($userFunctions->UserExists($requestedUser)){
                     $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
                     if($workspaceFunctions->WorkspaceExists($workspaceID) || $workspaceID == 0){
+                        $workspaceID = ($workspaceID==0) ? null : $workspaceID;
                         $list = $summaryFunctions->GetSummariesList($requestedUser, $workspaceID);
                         if($list || $list == null){
                             $customResponse['status'] = true;
@@ -622,14 +623,13 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary', function(Request $re
 /**
  * Get a Summary
  * Method -> GET
- * Parameters -> userID, workspaceID, summaryID
+ * Parameters -> userID, summaryID
  */
 
-$app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
+$app->get('/user/{userID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
-    $workspaceFunctions = new WorkspaceFunctions();
     $userFunctions = new UserFunctions();
     $filesFunctions = new FilesFunctions();
     if($request->hasHeader('HTTP-X-API-KEY')){
@@ -639,45 +639,38 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
             if($userFunctions->isUserAdmin($userID) || $userID==$requestedUser){
                 if($userFunctions->UserExists($requestedUser)){
-                    $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                    if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                        $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                        $query = mysqli_query($connection, "SELECT * FROM summaries WHERE userid=$requestedUser AND workspace=$workspaceID AND summaryNumber=$summaryID LIMIT 1");
-                        if($query){
-                            if(mysqli_num_rows($query) == 1){
-                                $contents = "";
-                                while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
-                                    $contents['dbRow'] = $row['id'];
-                                    $contents['userID'] = $row['userid'];
-                                    $contents['date'] = $row['date'];
-                                    $contents['summaryID'] = $row['summaryNumber'];
-                                    $contents['workspace'] = $row['workspace'];
-                                    $contents['contents'] = $row['contents'];
-                                }
-                                $files = $filesFunctions->GetFilesList($contents['dbRow']);
-                                if($files){
-                                    $contents['files'] = $files;
-                                }else{
-                                    $contents['files'] = null;
-                                }
-                                $customResponse['status'] = true;
-                                $customResponse['contents'] = $contents;
-                                $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(200);
-                            }else{
-                                $customResponse['errors'] = "Summary Not Found";
-                                $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(404);
+                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                    $query = mysqli_query($connection, "SELECT * FROM summaries WHERE userid=$requestedUser AND id=$summaryID LIMIT 1");
+                    if($query){
+                        if(mysqli_num_rows($query) == 1){
+                            $contents = "";
+                            while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
+                                $contents['summaryID'] = $row['id'];
+                                $contents['userID'] = $row['userid'];
+                                $contents['date'] = $row['date'];
+                                $contents['summaryNumber'] = $row['summaryNumber'];
+                                $contents['workspace'] = $row['workspace'];
+                                $contents['contents'] = $row['contents'];
                             }
-                        }else{
-                            $customResponse['errors'] = mysqli_error($connection);
+                            $files = $filesFunctions->GetFilesList($contents['dbRow']);
+                            if($files){
+                                $contents['files'] = $files;
+                            }else{
+                                $contents['files'] = null;
+                            }
+                            $customResponse['status'] = true;
+                            $customResponse['contents'] = $contents;
                             $response->getBody()->write(json_encode($customResponse));
-                            return $response->withStatus(500);
+                            return $response->withStatus(200);
+                        }else{
+                            $customResponse['errors'] = "Summary Not Found";
+                            $response->getBody()->write(json_encode($customResponse));
+                            return $response->withStatus(404);
                         }
                     }else{
-                        $customResponse['errors'] = "Workspace Not Found";
+                        $customResponse['errors'] = mysqli_error($connection);
                         $response->getBody()->write(json_encode($customResponse));
-                        return $response->withStatus(404);
+                        return $response->withStatus(500);
                     }
                 }else{
                     $customResponse['errors'] = "User Not Found";
@@ -704,15 +697,14 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
 /**
  * Get a Summary's File List
  * Method -> GET
- * Parameters -> userID, workspaceID, summaryID
+ * Parameters -> userID, summaryID
  */
 
-$app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', function(Request $request, Response $response, array $args){
+$app->get('/user/{userID}/summary/{summaryID}/files', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
     $userFunctions = new UserFunctions();
-    $workspaceFunctions = new WorkspaceFunctions();
     $summaryFunctions = new SummaryFunctions();
     $filesFunctions = new FilesFunctions();
 
@@ -723,12 +715,10 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', fu
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
             if($userFunctions->isUserAdmin($userID) || $userID==$requestedUser){
                 if($userFunctions->UserExists($requestedUser)){
-                    $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                    if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                        $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                        $dbRowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
-                        if($dbRowID){
-                            $files = $filesFunctions->GetFilesList($dbRowID);
+                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                    if($summaryFunctions->SummaryExists($summaryID)){
+                        if($summaryFunctions->CheckSummaryOwnership($requestedUser, $summaryID) || $userFunctions->isUserAdmin($userID)){
+                            $files = $filesFunctions->GetFilesList($summaryID);
                             if($files){
                                 if($files == ""){
                                     $customResponse['errors'] = "No Files Found";
@@ -746,12 +736,12 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', fu
                                 return $response->withStatus(500);
                             }
                         }else{
-                            $customResponse['errors'] = "Summary Not Found";
+                            $customResponse['errors'] = "Permission Denied";
                             $response->getBody()->write(json_encode($customResponse));
-                            return $response->withStatus(404);
+                            return $response->withStatus(403);
                         }
                     }else{
-                        $customResponse['errors'] = "Workspace Not Found";
+                        $customResponse['errors'] = "Summary Not Found";
                         $response->getBody()->write(json_encode($customResponse));
                         return $response->withStatus(404);
                     }
@@ -780,15 +770,14 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', fu
 /**
  * Get a Specific File From a Summary
  * Method -> GET
- * Parameters -> userID, workspaceID, summaryID, file
+ * Parameters -> userID, summaryID, file
  */
 
-$app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files/{file}', function(Request $request, Response $response, array $args){
+$app->get('/user/{userID}/summary/{summaryID}/files/{file}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
     $userFunctions = new UserFunctions();
-    $workspaceFunctions = new WorkspaceFunctions();
     $summaryFunctions = new SummaryFunctions();
     $filesFunctions = new FilesFunctions();
     $API_Settings = new API_Settings();
@@ -800,48 +789,48 @@ $app->get('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files/{fil
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
             if($userFunctions->isUserAdmin($userID) || $userID == $requestedUser){
                 if($userFunctions->UserExists($requestedUser)){
-                    $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                    if($workspaceFunctions->WorkspaceExists($workspaceID)){
                         $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                        $dbRowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
-                        if($dbRowID){
-                            $fileName = mysqli_real_escape_string($connection, $args['file']);
-                            if($filesFunctions->FileExists($fileName, $dbRowID)){
-                                $path = $filesFunctions->GetPath($fileName, $dbRowID);
-                                $filePath = $API_Settings->filesPath + $path;
-                                list(, , $actualName) = explode("/", $path);
+                        if($summaryFunctions->SummaryExists($summaryID)){
+                            if($userFunctions->isUserAdmin($userID) || $summaryFunctions->CheckSummaryOwnership($requestedUser, $summaryID)){
+                                $fileName = mysqli_real_escape_string($connection, $args['file']);
+                                if($filesFunctions->FileExists($fileName, $summaryID)){
+                                    $path = $filesFunctions->GetPath($fileName, $summaryID);
+                                    $filePath = $API_Settings->filesPath + $path;
+                                    list(, , $actualName) = explode("/", $path);
 
-                                if(file_exists(ROOT_FOLDER . "/" . $filePath)){
-                                    // https://www.php.net/manual/en/function.readfile.php
-                                    header('Content-Description: File Transfer');
-                                    header('Content-Type: application/octet-stream');
-                                    header('Content-Disposition: attachment; filename="'. $actualName .'"');
-                                    header('Expires: 0');
-                                    header('Cache-Control: must-revalidate');
-                                    header('Pragma: public');
-                                    header('Content-Length: ' . filesize(ROOT_FOLDER . "/" . $filePath));
-                                    readfile(ROOT_FOLDER . "/" . $filePath);
-                                    exit();
+                                    echo ROOT_FOLDER . "/" . $filePath;
+
+                                    if(file_exists(ROOT_FOLDER . "/" . $filePath)){
+                                        // https://www.php.net/manual/en/function.readfile.php
+                                        header('Content-Description: File Transfer');
+                                        header('Content-Type: application/octet-stream');
+                                        header('Content-Disposition: attachment; filename="'. $actualName .'"');
+                                        header('Expires: 0');
+                                        header('Cache-Control: must-revalidate');
+                                        header('Pragma: public');
+                                        header('Content-Length: ' . filesize(ROOT_FOLDER . "/" . $filePath));
+                                        readfile(ROOT_FOLDER . "/" . $filePath);
+                                        exit();
+                                    }else{
+                                        $customResponse['errors'] = "Resource Not Found";
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(404);
+                                    }
                                 }else{
-                                    $customResponse['errors'] = "Resource Not Found";
+                                    $customResponse['errors'] = "File Not Found";
                                     $response->getBody()->write(json_encode($customResponse));
                                     return $response->withStatus(404);
                                 }
                             }else{
-                                $customResponse['errors'] = "File Not Found";
+                                $customResponse['errors'] = "Permission Denied";
                                 $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(404);
+                                return $response->withStatus(403);
                             }
                         }else{
                             $customResponse['errors'] = "Summary Not Found";
                             $response->getBody()->write(json_encode($customResponse));
                             return $response->withStatus(404);
                         }
-                    }else{
-                        $customResponse['errors'] = "Workspace Not Found";
-                        $response->getBody()->write(json_encode($customResponse));
-                        return $response->withStatus(404);
-                    }
                 }else{
                     $customResponse['errors'] = "User Not Found";
                     $response->getBody()->write(json_encode($customResponse));
@@ -945,20 +934,87 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
         $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
-            if(isset($params['summaryID']) && isset($params['date']) && isset($params['bodyText'])){
+            if(isset($params['summaryNumber']) && isset($params['date']) && isset($params['bodyText'])){
                 $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
                 if($userID == $requestedUser){
                     $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
                     if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                        $summaryID = mysqli_real_escape_string($connection, $params['summaryID']);
-                        if(!$summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID)){
+                        $summaryNumber = mysqli_real_escape_string($connection, $params['summaryNumber']);
+                        if(!$summaryFunctions->FindSummary($requestedUser, $summaryNumber, $workspaceID)){
                             $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
                             if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
                                 $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
-                                $rowID = $summaryFunctions->EditSummary(false, $requestedUser, $summaryID, $workspaceID, $date, $bodyText);
-                                if($rowID){
+                                $summaryID = $summaryFunctions->EditSummary(false, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText);
+                                if($summaryID){
+                                    if(isset($params['filesToAdopt']) || isset($params['filesToRemove'])){
+
+                                        if(isset($params['filesToAdopt'])){
+                                            $files = base64_decode($_POST['filesToAdopt']);
+                                            $filesToAdopt = json_decode($files);
+
+                                            foreach ($filesToAdopt as $id) {
+                                                $adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'");
+                                                if(!$adopt){
+                                                    $response['status'] = false;
+                                                    $response['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                    echo json_encode($response);
+                                                    exit();
+                                                }
+                                            }
+                                        }
+
+                                        if(isset($params['filesToRemove'])){
+                                            $files = base64_decode($_POST['filesToRemove']);
+                                            $filesToRemove = json_decode($files);
+
+                                            $getAttachmentsQuery = "SELECT * FROM attachmentMapping WHERE summaryID='$summaryID'";
+                                            $getAttachments = mysqli_query($connection, $getAttachmentsQuery);
+                                            if($getAttachments){
+                                                if(mysqli_num_rows($getAttachments) > 0){
+                                                    while($row = mysqli_fetch_array($getAttachments, MYSQLI_ASSOC)){
+                                                        $map[$row['filename']] = $row['path'];
+                                                    }
+
+                                                    foreach ($filesToRemove as $file) {
+                                                        $fileToQuery = mysqli_real_escape_string($connection, $file);
+                                                        $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
+                                                        if($check){
+                                                            if(isset($map[$file])){
+                                                                if(!unlink("../" . $map[$file])){
+                                                                    $response['status'] = false;
+                                                                    $response['errors'] = "Error while trying to delete file " . $map[$file];
+                                                                    echo json_encode($response);
+                                                                    exit();
+                                                                }
+                                                            }else{
+                                                                $response['status'] = false;
+                                                                $response['errors'] = "Not set.";
+                                                                echo json_encode($response);
+                                                                exit();
+                                                            }
+                                                        }else{
+                                                            $response['status'] = false;
+                                                            $response['errors'] = "DELFI: " . mysqli_error($connection);
+                                                            echo json_encode($response);
+                                                            exit();
+                                                        }
+                                                    }
+                                                }else{
+                                                    $response['status'] = false;
+                                                    $response['errors'] = "No matches found.";
+                                                    echo json_encode($response);
+                                                    exit();
+                                                }
+                                            }else{
+                                                $response['status'] = false;
+                                                $response['errors'] = "GETAT: " . mysqli_error($connection);
+                                                echo json_encode($response);
+                                                exit();
+                                            }
+                                        }
+                                    }
                                     $customResponse['status'] = true;
-                                    $customResponse['rowID'] = $rowID;
+                                    $customResponse['rowID'] = $summaryID;
                                     $response->getBody()->write(json_encode($customResponse));
                                     return $response->withStatus(200);
                                 }else{
@@ -1006,15 +1062,12 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
 /**
  * Upload File
  * Method -> POST
- * Parameters -> userID, workspaceID, summaryID, FILE
+ * Parameters -> userID, file
  */
-$app->post('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', function(Request $request, Response $response, array $args){
+$app->post('/user/{userID}/uploadfile', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
-    $userFunctions = new UserFunctions();
-    $workspaceFunctions = new WorkspaceFunctions();
-    $summaryFunctions = new SummaryFunctions();
     $filesFunctions = new FilesFunctions();
     $settings = new API_Settings();
 
@@ -1024,69 +1077,55 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}/files', f
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
             if($userID==$requestedUser){
-                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
-                    if($rowID){
-                        if($_FILES["file"]["error"] == UPLOAD_ERR_OK){
-                            $tmp_name = $_FILES["file"]["tmp_name"];
-                            $fileName = $_FILES["file"]["name"];
-        
-                            $explodedName = explode("/", $tmp_name);
-                            $filetype = explode(".", $fileName);
-        
-                            if($filesFunctions->isFileTypeBlocked($filetype[count($filetype)-1]) || $_FILES["file"]["size"] > $settings->maxFileSize){
-                                $customResponse['errors'] = "File type not allowed or is too large!";
-                                $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(406);
-                            }else{
-                                $finalFileName = sha1_file($tmp_name) . sha1(time());
-                                move_uploaded_file($tmp_name, ROOT_FOLDER . "/" . $settings->filesPath . $finalFileName);
-                                $storedpath = mysqli_real_escape_string($connection, $settings->filesPath . $finalFileName);
-        
-                                $query = "INSERT INTO attachmentMapping (filename, path) VALUES ('$fileName', '$storedpath')";
-                                $run = mysqli_query($connection, $query);
-                                if($run){
-                                    $getRow = mysqli_query($connection, "SELECT id FROM attachmentMapping WHERE path='$storedpath'");
-                                    if($getRow){
-                                        if(mysqli_num_rows($getRow) > 0){
-                                            while($row = mysqli_fetch_array($getRow, MYSQLI_ASSOC)){
-                                                $customResponse['rowID'] = $row['id'];
-                                            }
-                                            $customResponse['status'] = true;
-                                            $response->getBody()->write(json_encode($customResponse));
-                                            return $response->withStatus(200);
-                                        }else{
-                                            $customResponse['errors'] = "Record not found";~
-                                            $response->getBody()->write(json_encode($customResponse));
-                                            return $response->withStatus(404);
-                                        }
-                                    }else{
-                                        $customResponse['errors'] = mysqli_error($connection);
-                                        $response->getBody()->write(json_encode($customResponse));
-                                        return $response->withStatus(500);
+                $uploadDirectory = ROOT_FOLDER . "/" . $settings->filesPath;
+                $uploadedFiles = $request->getUploadedFiles();
+                $uploadedFile = $uploadedFiles["file"];
+
+                if($uploadedFile->getError() === UPLOAD_ERR_OK){
+                    $extension = pathinfo($uploadedFile->getClientFileName(), PATHINFO_EXTENSION);
+
+                    if($filesFunctions->isFileTypeBlocked($extension) || $uploadedFile->getSize() > $settings->maxFileSize){
+                        $customResponse['errors'] = "File type not allowed or is too large!";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(406);
+                    }else{
+                        $basename = bin2hex(random_bytes(16));
+                        $uploadedFile->moveTo($uploadDirectory . $basename);
+
+                        $storedpath = mysqli_real_escape_string($connection, $settings->filesPath . $basename);
+
+                        $query = "INSERT INTO attachmentMapping (filename, path) VALUES ('" . $uploadedFile->getClientFileName() . "', '$storedpath')";
+                        $run = mysqli_query($connection, $query);
+                        if($run){
+                            $getRow = mysqli_query($connection, "SELECT id FROM attachmentMapping WHERE path='$storedpath'");
+                            if($getRow){
+                                if(mysqli_num_rows($getRow) > 0){
+                                    while($row = mysqli_fetch_array($getRow, MYSQLI_ASSOC)){
+                                        $customResponse['rowID'] = $row['id'];
                                     }
-                                }else{
-                                    $customResponse['errors'] = "Error: " . mysqli_error($connection);
+                                    $customResponse['status'] = true;
                                     $response->getBody()->write(json_encode($customResponse));
-                                    return $response->withStatus(500);
+                                    return $response->withStatus(200);
+                                }else{
+                                    $customResponse['errors'] = "Record not found";
+                                    $response->getBody()->write(json_encode($customResponse));
+                                    return $response->withStatus(404);
                                 }
+                            }else{
+                                $customResponse['errors'] = mysqli_error($connection);
+                                $response->getBody()->write(json_encode($customResponse));
+                                return $response->withStatus(500);
                             }
                         }else{
-                            $customResponse['errors'] = "Upload Error: " . $_FILES["file"]["error"];
+                            $customResponse['errors'] = "Error: " . mysqli_error($connection);
                             $response->getBody()->write(json_encode($customResponse));
                             return $response->withStatus(500);
                         }
-                    }else{
-                        $customResponse['errors'] = "Summary Not Found";
-                        $response->getBody()->write(json_encode($customResponse));
-                        return $response->withStatus(404);
                     }
                 }else{
-                    $customResponse['errors'] = "Workspace Not Found";
+                    $customResponse['errors'] = "An Error Occurred While Trying to Upload The File";
                     $response->getBody()->write(json_encode($customResponse));
-                    return $response->withStatus(404);
+                    return $response->withStatus(500);
                 }
             }else{
                 $customResponse['errors'] = "Permission Denied";
@@ -1276,13 +1315,14 @@ $app->put('/user/{userID}/changepassword/reset', function(Request $request, Resp
 /**
  * Edit a Specific Summary
  * Method -> PUT
- * Parameters -> userID, workspaceID, summaryID, date, contents, filesToAdopt, filesToRemove
+ * Parameters -> userID, summaryID, workspaceID, summaryNumber, date, contents, filesToAdopt, filesToRemove
  */
 
-$app->put('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
+$app->put('/user/{userID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
     $workspaceFunctions = new WorkspaceFunctions();
     $summaryFunctions = new SummaryFunctions();
     $params = (array)$request->getParsedBody();
@@ -1292,36 +1332,48 @@ $app->put('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
-            if($userID == $requestedUser){
-                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID); 
-                    if($rowID){
-                        $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
-                        if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
-                            $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
-                            if($summaryFunctions->EditSummary(true, $requestedUser, $summaryID, $workspaceID, $date, $bodyText, $rowID)){
-                                $customResponse['status'] = true;
-                                $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(200);
+            if($userID == $requestedUser || $userFunctions->isUserAdmin($userID)){
+                $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                if($summaryFunctions->SummaryExists($summaryID)){
+                    if($summaryFunctions->CheckSummaryOwnership($requestedUser, $summaryID) || $userFunctions->isUserAdmin($userID)){
+                        if($summaryFunctions->CheckSummaryOwnership($userID, $summaryID)){
+                            $workspaceID = mysqli_real_escape_string($connection, $params['workspaceID']);
+                            if($workspaceFunctions->WorkspaceExists($workspaceID)){
+                                $summaryNumber = mysqli_real_escape_string($connection, $params['summaryNumber']);
+                                $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
+                                if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
+                                    $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
+                                    if($summaryFunctions->EditSummary(true, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID)){
+                                        $customResponse['status'] = true;
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(200);
+                                    }else{
+                                        $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(500);
+                                    }
+                                }else{
+                                    $customResponse['errors'] = "Invalid Date Syntax";
+                                    $response->getBody()->write(json_encode($customResponse));
+                                    return $response->withStatus(400);
+                                }
                             }else{
-                                $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                $customResponse['errors'] = "Workspace Not Found";
                                 $response->getBody()->write(json_encode($customResponse));
-                                return $response->withStatus(500);
+                                return $response->withStatus(404);
                             }
                         }else{
-                            $customResponse['errors'] = "Invalid Date Syntax";
+                            $customResponse['errors'] = "Permission Denied";
                             $response->getBody()->write(json_encode($customResponse));
-                            return $response->withStatus(400);
+                            return $response->withStatus(403);
                         }
                     }else{
-                        $customResponse['errors'] = "Summary Not Found";
+                        $customResponse['errors'] = "Permission Denied";
                         $response->getBody()->write(json_encode($customResponse));
-                        return $response->withStatus(404);
+                        return $response->withStatus(403);
                     }
                 }else{
-                    $customResponse['errors'] = "Workspace Not Found";
+                    $customResponse['errors'] = "Summary Not Found";
                     $response->getBody()->write(json_encode($customResponse));
                     return $response->withStatus(404);
                 }
@@ -1406,14 +1458,14 @@ $app->delete('/user/{userID}', function(Request $request, Response $response, ar
 /**
  * Delete a Summary
  * Method -> DELETE
- * Parameters -> userID, workspaceID, summaryID
+ * Parameters -> userID, summaryID
  */
 
-$app->delete('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
+$app->delete('/user/{userID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();
-    $workspaceFunctions = new WorkspaceFunctions();
+    $userFunctions = new UserFunctions();
     $summaryFunctions = new SummaryFunctions();
 
     if($request->hasHeader('HTTP-X-API-KEY')){
@@ -1421,28 +1473,20 @@ $app->delete('/user/{userID}/workspace/{workspaceID}/summary/{summaryID}', funct
         $userID = $authTokens->isTokenValid($AccessToken);
         if($userID){
             $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
-            if($userID == $requestedUser){
-                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
-                if($workspaceFunctions->WorkspaceExists($workspaceID)){
-                    $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
-                    $rowID = $summaryFunctions->FindSummary($requestedUser, $summaryID, $workspaceID);
-                    if($rowID){
-                        if($summaryFunctions->DeleteSummaries($rowID)){
-                            $customResponse['status'] = true;
-                            $response->getBody()->write(json_encode($customResponse));
-                            return $response->withStatus(200);
-                        }else{
-                            $customResponse['errors'] = "An Error Occurred While Trying to Delete the Summary";
-                            $response->getBody()->write(json_encode($customResponse));
-                            return $response->withStatus(500);
-                        }
-                    }else{
-                        $customResponse['errors'] = "Summary Not Found";
+            if($userID == $requestedUser || $userFunctions->isUserAdmin($userID)){
+                $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
+                if($summaryFunctions->SummaryExists($summaryID)){
+                    if($summaryFunctions->DeleteSummaries($summaryID)){
+                        $customResponse['status'] = true;
                         $response->getBody()->write(json_encode($customResponse));
-                        return $response->withStatus(404);
+                        return $response->withStatus(200);
+                    }else{
+                        $customResponse['errors'] = "An Error Occurred While Trying to Delete the Summary";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(500);
                     }
                 }else{
-                    $customResponse['errors'] = "Workspace Not Found";
+                    $customResponse['errors'] = "Summary Not Found";
                     $response->getBody()->write(json_encode($customResponse));
                     return $response->withStatus(404);
                 }

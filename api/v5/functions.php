@@ -314,8 +314,8 @@ class UserFunctions{
 			throw new Exception("DELUSR: " . mysqli_error($connection));
 		}
 		return false;
-	}
-
+    }
+    
 	/**
 	 * Retrieves the user list from the database
 	 * @return mixed List of users, false if an error occurs
@@ -330,7 +330,7 @@ class UserFunctions{
 			while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
 				$list[$i]['userid'] = $row['id'];
 				$list[$i]['user'] = $row['user'];
-				$list[$i]['displayName'] = $row['displayName'];
+                $list[$i]['displayName'] = $row['displayName'];
 				$list[$i]['classID'] = $row['classID'];
 				$list[$i]['isAdmin'] = ($row['adminControl'] == 1 ? true : false);
 				$list[$i]['isDeletionProtected'] = ($row['isDeletionProtected'] == 1 ? true : false);
@@ -647,7 +647,7 @@ class WorkspaceFunctions{
         $list = $summaryFunctions->GetSummariesList(null, $workspaceID);
         if($list == null || $list != false){
             foreach($list as $row){
-                if(!$summaryFunctions->DeleteSummaries($row['id'])){
+                if(!$summaryFunctions->DeleteSummaries($row['ID'])){
                     throw new Exception("Could Not Delete The Summary.");
                     return false;
                 }
@@ -1000,14 +1000,16 @@ class FilesFunctions{
 
     /**
      * Checks if Given File Name Exists in the context of given summary
-     * @param string $fileName
-     * @param int $summaryID The database summary row ID
+     * @param string $inServerName The name of the file on the server
      * @return boolean True if file exists, false otherwise
      */
-    function FileExists($fileName, $summaryID){
+    function FileExists($inServerName){
         $connection = databaseConnect();
+        $settings = new API_Settings();
+        
+        $path = $settings->filesPath . $inServerName;
 
-        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryID LIMIT 1");
+        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE path='$path' LIMIT 1");
         if($query){
             if(mysqli_num_rows($query) == 1){
                 return true;
@@ -1019,24 +1021,24 @@ class FilesFunctions{
     }
 
     /**
-     * Returns the path of the file
-     * @param string $fileName The name of the file to get the path of
-     * @param int $summaryID The database summary row ID
-     * @return mixed String with path, false if any errors are found.
+     * Gets the actual filename based on the provided path
+     * @param string $path The file path
+     * @return mixed File name. False if an error occurs
      */
-    function GetPath($fileName, $summaryID){
+    function GetName($path){
         $connection = databaseConnect();
 
-        $query = mysqli_query($connection, "SELECT path FROM attachmentMapping WHERE filename='$fileName' AND summaryID=$summaryID LIMIT 1");
+        $query = mysqli_query($connection, "SELECT filename FROM attachmentMapping WHERE path='$path' LIMIT 1");
         if($query){
             if(mysqli_num_rows($query) == 1){
-                while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
-                    return $row['path'];
+                if($row = mysqli_fetch_array($query)){
+                    return $row['filename'];
                 }
             }
         }else{
-            throw new Exception("GETPTH: " . mysqli_error($connection));
+            throw new Exception("FILNAM: " . mysqli_error($connection));
         }
+
         return false;
     }
 

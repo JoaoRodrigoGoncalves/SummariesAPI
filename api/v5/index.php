@@ -76,6 +76,7 @@ $app->post('/login', function (Request $request, Response $response, array $args
                     $userID = $row['id'];
                     $dbpassword = $row['password'];
                     $username = $row['user'];
+                    $classID = $row['classID'];
                     $displayName = $row['displayName'];
                     $adminControl = ($row['adminControl']==1 ? true : false);
                 }
@@ -84,6 +85,7 @@ $app->post('/login', function (Request $request, Response $response, array $args
                     $customResponse['AccessToken'] = $authTokens->GenerateAccessToken($userID);
                     $customResponse['userID'] = $userID;
                     $customResponse['username'] = $username;
+                    $customResponse['classID'] = $classID;
                     $customResponse['displayName'] = $displayName;
                     $customResponse['adminControl'] = $adminControl;
                     $response->getBody()->write(json_encode($customResponse));
@@ -792,25 +794,28 @@ $app->get('/user/{userID}/summary/{summaryID}/files/{file}', function(Request $r
                         $summaryID = mysqli_real_escape_string($connection, $args['summaryID']);
                         if($summaryFunctions->SummaryExists($summaryID)){
                             if($userFunctions->isUserAdmin($userID) || $summaryFunctions->CheckSummaryOwnership($requestedUser, $summaryID)){
-                                $fileName = mysqli_real_escape_string($connection, $args['file']);
-                                if($filesFunctions->FileExists($fileName, $summaryID)){
-                                    $path = $filesFunctions->GetPath($fileName, $summaryID);
-                                    $filePath = $API_Settings->filesPath + $path;
-                                    list(, , $actualName) = explode("/", $path);
-
-                                    echo ROOT_FOLDER . "/" . $filePath;
+                                $fileInServerName = mysqli_real_escape_string($connection, $args['file']);
+                                if($filesFunctions->FileExists($fileInServerName)){
+                                    $filePath = $API_Settings->filesPath . $fileInServerName;
 
                                     if(file_exists(ROOT_FOLDER . "/" . $filePath)){
-                                        // https://www.php.net/manual/en/function.readfile.php
-                                        header('Content-Description: File Transfer');
-                                        header('Content-Type: application/octet-stream');
-                                        header('Content-Disposition: attachment; filename="'. $actualName .'"');
-                                        header('Expires: 0');
-                                        header('Cache-Control: must-revalidate');
-                                        header('Pragma: public');
-                                        header('Content-Length: ' . filesize(ROOT_FOLDER . "/" . $filePath));
-                                        readfile(ROOT_FOLDER . "/" . $filePath);
-                                        exit();
+                                        $actualName = $filesFunctions->GetName($filePath);
+                                        if($actualName){
+                                            // https://www.php.net/manual/en/function.readfile.php
+                                            header('Content-Description: File Transfer');
+                                            header('Content-Type: application/octet-stream');
+                                            header('Content-Disposition: attachment; filename="'. $actualName .'"');
+                                            header('Expires: 0');
+                                            header('Cache-Control: must-revalidate');
+                                            header('Pragma: public');
+                                            header('Content-Length: ' . filesize(ROOT_FOLDER . "/" . $filePath));
+                                            readfile(ROOT_FOLDER . "/" . $filePath);
+                                            exit();
+                                        }else{
+                                            $customResponse['errors'] = "Could Not Get File Name";
+                                            $response->getBody()->write(json_encode($customResponse));
+                                            return $response->withStatus(500);
+                                        }
                                     }else{
                                         $customResponse['errors'] = "Resource Not Found";
                                         $response->getBody()->write(json_encode($customResponse));
@@ -946,70 +951,16 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
                                 $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
                                 $summaryID = $summaryFunctions->EditSummary(false, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText);
                                 if($summaryID){
-                                    if(isset($params['filesToAdopt']) || isset($params['filesToRemove'])){
+                                    if(isset($params['filesToAdopt'])){
+                                        $files = base64_decode($_POST['filesToAdopt']);
+                                        $filesToAdopt = json_decode($files);
 
-                                        if(isset($params['filesToAdopt'])){
-                                            $files = base64_decode($_POST['filesToAdopt']);
-                                            $filesToAdopt = json_decode($files);
-
-                                            foreach ($filesToAdopt as $id) {
-                                                $adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'");
-                                                if(!$adopt){
-                                                    $response['status'] = false;
-                                                    $response['errors'] = "ADPFI: " . mysqli_error($connection);
-                                                    echo json_encode($response);
-                                                    exit();
-                                                }
-                                            }
-                                        }
-
-                                        if(isset($params['filesToRemove'])){
-                                            $files = base64_decode($_POST['filesToRemove']);
-                                            $filesToRemove = json_decode($files);
-
-                                            $getAttachmentsQuery = "SELECT * FROM attachmentMapping WHERE summaryID='$summaryID'";
-                                            $getAttachments = mysqli_query($connection, $getAttachmentsQuery);
-                                            if($getAttachments){
-                                                if(mysqli_num_rows($getAttachments) > 0){
-                                                    while($row = mysqli_fetch_array($getAttachments, MYSQLI_ASSOC)){
-                                                        $map[$row['filename']] = $row['path'];
-                                                    }
-
-                                                    foreach ($filesToRemove as $file) {
-                                                        $fileToQuery = mysqli_real_escape_string($connection, $file);
-                                                        $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
-                                                        if($check){
-                                                            if(isset($map[$file])){
-                                                                if(!unlink("../" . $map[$file])){
-                                                                    $response['status'] = false;
-                                                                    $response['errors'] = "Error while trying to delete file " . $map[$file];
-                                                                    echo json_encode($response);
-                                                                    exit();
-                                                                }
-                                                            }else{
-                                                                $response['status'] = false;
-                                                                $response['errors'] = "Not set.";
-                                                                echo json_encode($response);
-                                                                exit();
-                                                            }
-                                                        }else{
-                                                            $response['status'] = false;
-                                                            $response['errors'] = "DELFI: " . mysqli_error($connection);
-                                                            echo json_encode($response);
-                                                            exit();
-                                                        }
-                                                    }
-                                                }else{
-                                                    $response['status'] = false;
-                                                    $response['errors'] = "No matches found.";
-                                                    echo json_encode($response);
-                                                    exit();
-                                                }
-                                            }else{
-                                                $response['status'] = false;
-                                                $response['errors'] = "GETAT: " . mysqli_error($connection);
-                                                echo json_encode($response);
-                                                exit();
+                                        foreach ($filesToAdopt as $id) {
+                                            $adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'");
+                                            if(!$adopt){
+                                                $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                $response->getBody()->write(json_encode($customResponse));
+                                                return $response->withStatus(500);
                                             }
                                         }
                                     }
@@ -1344,6 +1295,66 @@ $app->put('/user/{userID}/summary/{summaryID}', function(Request $request, Respo
                                 if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
                                     $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
                                     if($summaryFunctions->EditSummary(true, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID)){
+                                        if(isset($params['filesToAdopt']) || isset($params['filesToRemove'])){
+
+                                            if(isset($params['filesToAdopt'])){
+                                                $files = base64_decode($params['filesToAdopt']);
+                                                $filesToAdopt = json_decode($files);
+    
+                                                foreach ($filesToAdopt as $id) {
+                                                    if(!mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'")){
+                                                        $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                        $response->getBody()->write(json_encode($customResponse));
+                                                        return $response->withStatus(500);
+                                                    }
+                                                }
+                                            }
+    
+                                            if(isset($params['filesToRemove'])){
+                                                $files = base64_decode($params['filesToRemove']);
+                                                $filesToRemove = json_decode($files);
+    
+                                                $getAttachmentsQuery = "SELECT * FROM attachmentMapping WHERE summaryID='$summaryID'";
+                                                $getAttachments = mysqli_query($connection, $getAttachmentsQuery);
+                                                if($getAttachments){
+                                                    if(mysqli_num_rows($getAttachments) > 0){
+                                                        while($row = mysqli_fetch_array($getAttachments, MYSQLI_ASSOC)){
+                                                            $map[$row['filename']] = $row['path'];
+                                                        }
+    
+                                                        foreach ($filesToRemove as $file) {
+                                                            $fileToQuery = mysqli_real_escape_string($connection, $file);
+                                                            $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
+                                                            if($check){
+                                                                if(isset($map[$file])){
+                                                                    if(!unlink(ROOT_FOLDER . "/" . $map[$file])){
+                                                                        $customResponse['errors'] = "Error while trying to delete file " . $map[$file];
+                                                                        $response->getBody()->write(json_encode($customResponse));
+                                                                        return $response->withStatus(500);
+                                                                    }
+                                                                }else{
+                                                                    $customResponse['errors'] = "Not set.";
+                                                                    $response->getBody()->write(json_encode($customResponse));
+                                                                    return $response->withStatus(500);
+                                                                }
+                                                            }else{
+                                                                $customResponse['errors'] = "DELFI: " . mysqli_error($connection);
+                                                                $response->getBody()->write(json_encode($customResponse));
+                                                                return $response->withStatus(500);
+                                                            }
+                                                        }
+                                                    }else{
+                                                        $customResponse['errors'] = "No matches found.";
+                                                        $response->getBody()->write(json_encode($customResponse));
+                                                        return $response->withStatus(404);
+                                                    }
+                                                }else{
+                                                    $customResponse['errors'] = "GETAT: " . mysqli_error($connection);
+                                                    $response->getBody()->write(json_encode($customResponse));
+                                                    return $response->withStatus(500);
+                                                }
+                                            }
+                                        }
                                         $customResponse['status'] = true;
                                         $response->getBody()->write(json_encode($customResponse));
                                         return $response->withStatus(200);

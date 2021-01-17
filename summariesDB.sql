@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 4.9.4
+-- version 4.9.5deb2
 -- https://www.phpmyadmin.net/
 --
--- Host: localhost
--- Tempo de geração: 28-Maio-2020 às 16:33
--- Versão do servidor: 5.7.30-0ubuntu0.18.04.1
--- versão do PHP: 7.2.24-0ubuntu0.18.04.6
+-- Host: localhost:3306
+-- Tempo de geração: 17-Jan-2021 às 13:27
+-- Versão do servidor: 8.0.22-0ubuntu0.20.04.3
+-- versão do PHP: 7.4.3
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
@@ -25,21 +25,16 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Estrutura da tabela `APIkeys`
+-- Estrutura da tabela `AccessTokens`
 --
 
-CREATE TABLE `APIkeys` (
-  `id` int(11) NOT NULL,
-  `owner` varchar(257) NOT NULL,
-  `apikey` varchar(100) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
---
--- Extraindo dados da tabela `APIkeys`
---
-
-INSERT INTO `APIkeys` (`id`, `owner`, `apikey`) VALUES
-(1, 'SOFTWARE', '1f984e2ed1545f287fe473c890266fea901efcd63d07967ae6d2f09f4566ddde930923ee9212ea815186b0c11a620a5cc85e');
+CREATE TABLE `AccessTokens` (
+  `id` int NOT NULL,
+  `userid` int NOT NULL,
+  `token` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `eventName` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expiredate` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -48,11 +43,11 @@ INSERT INTO `APIkeys` (`id`, `owner`, `apikey`) VALUES
 --
 
 CREATE TABLE `attachmentMapping` (
-  `id` int(11) NOT NULL,
-  `summaryID` int(11) DEFAULT NULL,
-  `filename` varchar(200) NOT NULL,
-  `path` varchar(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `id` int NOT NULL,
+  `summaryID` int DEFAULT NULL,
+  `filename` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -61,19 +56,16 @@ CREATE TABLE `attachmentMapping` (
 --
 
 CREATE TABLE `classesList` (
-  `id` int(11) NOT NULL,
-  `name` varchar(127) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+  `id` int NOT NULL,
+  `name` varchar(127) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Extraindo dados da tabela `classesList`
 --
 
 INSERT INTO `classesList` (`id`, `name`) VALUES
-(0, 'No Class'),
-(1, '67 - GEI 2018 a 2021'),
-(2, '68 - Turismo 2018 a 2021'),
-(3, 'Turma');
+(0, 'No Class');
 
 -- --------------------------------------------------------
 
@@ -82,13 +74,13 @@ INSERT INTO `classesList` (`id`, `name`) VALUES
 --
 
 CREATE TABLE `summaries` (
-  `id` int(11) NOT NULL,
-  `userid` int(11) NOT NULL,
+  `id` int NOT NULL,
+  `userid` int NOT NULL,
   `date` date NOT NULL,
-  `summaryNumber` int(11) NOT NULL,
-  `workspace` int(11) NOT NULL,
-  `contents` longtext NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  `summaryNumber` int NOT NULL,
+  `workspace` int NOT NULL,
+  `contents` longtext COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -97,21 +89,21 @@ CREATE TABLE `summaries` (
 --
 
 CREATE TABLE `users` (
-  `id` int(11) NOT NULL,
-  `user` varchar(256) NOT NULL,
-  `classID` int(11) NOT NULL DEFAULT '0',
-  `password` varchar(256) NOT NULL,
-  `displayName` varchar(256) NOT NULL,
+  `id` int NOT NULL,
+  `user` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `classID` int NOT NULL DEFAULT '0',
+  `password` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `displayName` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
   `adminControl` tinyint(1) NOT NULL DEFAULT '0',
   `isDeletionProtected` tinyint(1) NOT NULL DEFAULT '0'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Extraindo dados da tabela `users`
 --
 
 INSERT INTO `users` (`id`, `user`, `classID`, `password`, `displayName`, `adminControl`, `isDeletionProtected`) VALUES
-(1, 'admin', 1, '$2y$10$p3xtZBuXdg5jkjOevHpxCOYIGw7kVfGfkqlJoK2hTi7rphbR5jyja', 'admin', 1, 1);
+(1, 'admin', 0, '$2y$10$iWBNPjIrNjIJw2yXmNd61uHFxzOlttMbYrYMqvW4j4DLN30JbS0ay', 'Administrator', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -120,27 +112,27 @@ INSERT INTO `users` (`id`, `user`, `classID`, `password`, `displayName`, `adminC
 --
 
 CREATE TABLE `workspaces` (
-  `id` int(11) NOT NULL,
-  `name` varchar(256) NOT NULL,
+  `id` int NOT NULL,
+  `name` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
   `read` tinyint(1) NOT NULL DEFAULT '1',
   `write` tinyint(1) NOT NULL DEFAULT '1'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Extraindo dados da tabela `workspaces`
 --
 
 INSERT INTO `workspaces` (`id`, `name`, `read`, `write`) VALUES
-(1, '2020', 1, 1);
+(1, 'Default', 1, 1);
 
 --
 -- Índices para tabelas despejadas
 --
 
 --
--- Índices para tabela `APIkeys`
+-- Índices para tabela `AccessTokens`
 --
-ALTER TABLE `APIkeys`
+ALTER TABLE `AccessTokens`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -165,7 +157,8 @@ ALTER TABLE `summaries`
 -- Índices para tabela `users`
 --
 ALTER TABLE `users`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `user` (`user`);
 
 --
 -- Índices para tabela `workspaces`
@@ -178,40 +171,40 @@ ALTER TABLE `workspaces`
 --
 
 --
--- AUTO_INCREMENT de tabela `APIkeys`
+-- AUTO_INCREMENT de tabela `AccessTokens`
 --
-ALTER TABLE `APIkeys`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `AccessTokens`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT de tabela `attachmentMapping`
 --
 ALTER TABLE `attachmentMapping`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT de tabela `classesList`
 --
 ALTER TABLE `classesList`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT de tabela `summaries`
 --
 ALTER TABLE `summaries`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT de tabela `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT de tabela `workspaces`
 --
 ALTER TABLE `workspaces`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -12,8 +12,8 @@ class API_Settings{
 
     public $databaseHost = "localhost";
     public $databaseUser = "summaries";
-    public $databasePsswd = "HXIUI39kasbb6Bji";
-    public $databaseName = "summariesDB_dev";
+    public $databasePsswd = "";
+    public $databaseName = "summariesDB";
 
     // Auth-Related Settings
 

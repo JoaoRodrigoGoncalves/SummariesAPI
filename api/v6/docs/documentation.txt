@@ -1,0 +1,34 @@
+Database
+
+The user needs to have, at least, the following permissions for this API to work properly:
+
+SELECT
+INSERT
+UPDATE
+DELETE
+CREATE
+ALTER
+EVENT
+
+
+Errors List and their meaning:
+
+GENTKN -> Token generation error
+CHKTKN -> Error while checking the existence of a token
+RFSTKN -> Error while trying to refresh the expiration time of the token
+UPDPSW -> An error occurred while trying to update the user password
+UPDUSR -> An error occurred while creating or editing the user account
+GULERR -> Error while getting user List
+DELCLS -> Error while deleting the class
+SCHCLS -> Error while searching for the class
+EDTCLS -> Error while trying to edit/add the class
+LSTCLS -> Error while trying to retrieve a list of classes
+DELWRK -> Error while trying to delete the workspace
+SUMLST -> Error while trying to get the summaries list
+FISLST -> Error while fetching the files to add to the summaries list
+SUMDEL -> Error while trying to delete a summary
+FILFCH -> Error while trying to fetch the files
+FILDEL -> Error while trying to physically delete a file
+EDTSUM -> Error while trying to add/edit a summary
+GTKNEV -> Error while trying to get the token event
+CHKOWN -> Error while trying to check object ownership

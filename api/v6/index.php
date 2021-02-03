@@ -1611,7 +1611,7 @@ $app->get('/workspace/{workspaceID}', function(Request $request, Response $respo
 /**
  * Create a New Workspace
  * Method -> POST
- * Parameters -> name, readMode, writeMode
+ * Parameters -> name, readMode, writeMode, JSONString
  */
 
 $app->post('/workspace', function(Request $request, Response $response, array $args){
@@ -1633,7 +1633,7 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
                 $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
                 $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
 
-                if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode)){
+                if($workspaceFunctions->NewWorkspace($name, $readMode, $writeMode, base64_decode($params['JSONString']))){
                     $customResponse['status'] = true;
                     $response->getBody()->write(json_encode($customResponse));
                     return $response->withStatus(200);
@@ -1662,7 +1662,7 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
 /**
  * Edit Workspace
  * Method -> PUT
- * Parameters -> workspaceID, name, readMode, writeMode
+ * Parameters -> workspaceID, name, readMode, writeMode, JSONString
  */
 
 $app->put('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
@@ -1685,7 +1685,8 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
                     $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
                     $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
                     $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
-                    if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode, $workspaceID)){
+                    
+                    if($workspaceFunctions->EditWorkspace($workspaceID, $name, $readMode, $writeMode, base64_decode($params['JSONString']))){
                         $customResponse['status'] = true;
                         $response->getBody()->write(json_encode($customResponse));
                         return $response->withStatus(200);
@@ -1722,7 +1723,7 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
  * Parameters -> worksapceID
  */
 
-$app->delete('workspace/{workspaceID}', function(Request $request, Response $response, array $args){
+$app->delete('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();

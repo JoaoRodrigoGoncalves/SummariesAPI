@@ -546,6 +546,7 @@ class WorkspaceFunctions{
      */
     function GetWorkspaceList(){
         $connection = databaseConnect();
+        $workspaceFunctions = new WorkspaceFunctions();
 
         $query = "SELECT workspaces.*, (SELECT COUNT(*) FROM summaries WHERE summaries.workspace=workspaces.id) AS totalSummaries FROM workspaces";
         $run = mysqli_query($connection, $query);
@@ -558,6 +559,7 @@ class WorkspaceFunctions{
                     $list[$i]['read'] = ($row['read'] == 1 ? true : false);
                     $list[$i]['write'] = ($row['write'] == 1 ? true : false);
                     $list[$i]['totalSummaries'] = $row['totalSummaries'];
+                    $list[$i]['hours'] = $workspaceFunctions->GetWorkspaceHours($row['id']);
                     $i++;
                 }
                 mysqli_free_result($run);
@@ -579,6 +581,7 @@ class WorkspaceFunctions{
      */
     function GetWorkspace($workspaceID){
         $connection = databaseConnect();
+        $workspaceFunctions = new WorkspaceFunctions();
 
         $query = "SELECT workspaces.*, (SELECT COUNT(*) FROM summaries WHERE summaries.workspace=workspaces.id) AS totalSummaries FROM workspaces WHERE workspaces.id=$workspaceID";
         $run = mysqli_query($connection, $query);
@@ -591,6 +594,7 @@ class WorkspaceFunctions{
                     $list[$i]['read'] = ($row['read'] == 1 ? true : false);
                     $list[$i]['write'] = ($row['write'] == 1 ? true : false);
                     $list[$i]['totalSummaries'] = $row['totalSummaries'];
+                    $list[$i]['hours'] = $workspaceFunctions->GetWorkspaceHours($row['id']);
                     $i++;
                 }
                 mysqli_free_result($run);
@@ -606,30 +610,116 @@ class WorkspaceFunctions{
     }
 
     /**
-     * Adds/Edits a workspace
-     * @param string $name The name of the workspace
+     * Adds a new Workspace
+     * @param string $name the workspace name
      * @param bool $readMode Whether the users are allowed to read the contents of this workspace
      * @param bool $writeMode Whether the users are allowed to write on this workspace
-     * @param int|null $workspaceID The ID of the workspace. If this field is filled, it means that this is an edit operation
+     * @param string $JSONHoursString JSON string containing the total workspace hours to be assigned to each class
      * @return bool True if operation preformed successfully, false otherwise
      */
-    function EditWorkspace($name, $readMode, $writeMode, $workspaceID = null){
+    function NewWorkspace($name, $readMode, $writeMode, $JSONHoursString){
         $connection = databaseConnect();
+        $workspaceFunctions = new WorkspaceFunctions();
 
         $readMode = ($readMode === true || $readMode == "true" || $readMode == "True" ? 1 : 0);
         $writeMode = ($writeMode === true || $writeMode == "true" || $writeMode == "True" ? 1 : 0);
         $writeMode = ($readMode == 0 ? 0 : $writeMode);
 
-        if($workspaceID == null){
-            $query = "INSERT INTO workspaces (name, `read`, `write`) VALUES ('$name', '$readMode', '$writeMode')";
-        }else{
-            $query = "UPDATE workspaces SET name='$name', `read`='$readMode', `write`='$writeMode' WHERE id='$workspaceID'";
-        }
+        $query = "INSERT INTO workspaces (name, `read`, `write`) VALUES ('$name', '$readMode', '$writeMode')";
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
+                $hours = json_decode($JSONHoursString, true);
+                if(!is_null($hours)){
+                    $workspaceID = mysqli_insert_id($connection);
+                    if(isset($hours['classesToAdd'])){
+                        foreach ($hours['classesToAdd'] as $item) {
+                            if(isset($item['classID']) || isset($item['totalHours'])){
+                                if(is_numeric($item['classID']) || is_numeric($item['totalHours'])){
+                                    continue;
+                                }
+                            }
+                            return false;
+                        }
+    
+                        foreach ($hours['classesToAdd'] as $item) {
+                            $classID = mysqli_real_escape_string($connection, $item['classID']);
+                            $totalHours = mysqli_real_escape_string($connection, $item['totalHours']);
+                            if(!$workspaceFunctions->NewWorkspaceHours($workspaceID, $classID, $totalHours)){
+                                return false;
+                            }
+                        }
+                    }
+                }
                 return true;
             }
+        }else{
+            throw new Exception("EDTWRK: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Edits the workspace
+     * @param string $name The name of the workspace
+     * @param bool $readMode Whether the users are allowed to read the contents of this workspace
+     * @param bool $writeMode Whether the users are allowed to write on this workspace
+     * @param int $workspaceID The ID of the workspace.
+     * @param string $JSONHoursString JSON string containing the total workspace hours to be assigned to each class
+     * @return bool True if operation preformed successfully, false otherwise
+     */
+    function EditWorkspace($workspaceID, $name, $readMode, $writeMode, $JSONHoursString){
+        $connection = databaseConnect();
+        $workspaceFunctions = new WorkspaceFunctions();
+
+        $readMode = ($readMode === true || $readMode == "true" || $readMode == "True" ? 1 : 0);
+        $writeMode = ($writeMode === true || $writeMode == "true" || $writeMode == "True" ? 1 : 0);
+        $writeMode = ($readMode == 0 ? 0 : $writeMode);
+
+        $query = "UPDATE workspaces SET name='$name', `read`='$readMode', `write`='$writeMode' WHERE id='$workspaceID'";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            $hours = json_decode($JSONHoursString, true);
+            if(!is_null($hours)){
+
+                if(isset($hours['classesToAdd'])){
+                    foreach ($hours['classesToAdd'] as $item) {
+                        if(isset($item['classID']) && isset($item['totalHours'])){
+                            if(is_numeric($item['classID']) && is_numeric($item['totalHours'])){
+                                if(!$workspaceFunctions->NewWorkspaceHours($workspaceID, $item['classID'], $item['totalHours'])){
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(isset($hours['classesToEdit'])){
+                    foreach ($hours['classesToEdit'] as $item){
+                        if(isset($item['classID']) && isset($item['totalHours'])){
+                            if(is_numeric($item['classID']) && is_numeric($item['totalHours'])){
+                                if(!$workspaceFunctions->UpdateClassHours($workspaceID, $item['classID'], $item['totalHours'])){
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(isset($hours['classesToRemove'])){
+                    foreach ($hours['classesToRemove'] as $item) {
+                        if(isset($item['classID'])){
+                            if(is_numeric($item['classID'])){
+                                if(!$workspaceFunctions->RemoveClassFromWorkspace($workspaceID, $item['classID'])){
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+            return true;
         }else{
             throw new Exception("EDTWRK: " . mysqli_error($connection));
         }
@@ -678,6 +768,7 @@ class WorkspaceFunctions{
                             while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
                                 $summaryFunctions->DeleteSummaries($row['id']);
                             }
+                            mysqli_query($connection, "DELETE FROM hoursManagement WHERE WorkspaceID='$workspaceID'");
                             mysqli_free_result($query);
                         }
                     }else{
@@ -688,6 +779,100 @@ class WorkspaceFunctions{
             }
         }else{
             throw new Exception("DELWRK: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Gets all rows related to the specified workspaceID
+     * @param int $workspaceID The ID of the workspace
+     * @return mixed Array with fetched result, false otherwise
+     */
+    function GetWorkspaceHours($workspaceID){
+        $connection = databaseConnect();
+
+        $query = mysqli_query($connection, "SELECT * FROM hoursManagement WHERE workspaceID=$workspaceID");
+        if($query){
+            if(mysqli_num_rows($query) > 0){
+                $i = 0;
+                while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
+                    $result[$i]['id'] = $row['id'];
+                    $result[$i]['workspaceID'] = $row['WorkspaceID'];
+                    $result[$i]['classID'] = $row['ClassID'];
+                    $result[$i]['TotalHours'] = $row['TotalHours'];
+                    $i++;
+                }
+                return $result;
+            }else{
+                return null;
+            }
+        }else{
+            throw new Exception("GETHRS: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Creates a New Entry on the database with the number of hours of the specified class
+     * @param int $workspaceID The ID of the workspace
+     * @param int $classID The ID of the class
+     * @param int $totalhours The total number of hours
+     * @return bool True if operation preformed successfully, false otherwise
+     */
+    function NewWorkspaceHours($workspaceID, $classID, $totalhours){
+        $connection = databaseConnect();
+
+        $query = "INSERT INTO hoursManagement (WorkspaceID, ClassID, TotalHours) VALUES ('$workspaceID', '$classID', '$totalhours')";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            if(mysqli_affected_rows($connection) == 1){
+                return true;
+            }
+        }else{
+            throw new Exception("NEWHRS: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Updates the total hours value on the database
+     * @param int $workspaceID The ID of the workspace
+     * @param int $classID The ID of the class
+     * @param int $totalhours The total number of hours
+     * @return bool True if operation preformed successfully, false otherwise
+     */
+    function UpdateClassHours($workspaceID, $classID, $totalhours){
+        $connection = databaseConnect();
+
+        $query = "UPDATE hoursManagement SET TotalHours='$totalhours' WHERE WorkspaceID='$workspaceID' AND ClassID='$classID'";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            if(mysqli_affected_rows($connection) == 1){
+                return true;
+            }
+        }else{
+            throw new Exception("UPDHRS: " . mysqli_error($connection));
+        }
+        return false;
+    }
+
+    /**
+     * Removes the class from the specifeid workspace
+     * @param int $workspaceID The ID of the workspace
+     * @param int $classID The ID of the class
+     * @return bool True if operation preformed successfully, false otherwise
+     */
+    function RemoveClassFromWorkspace($workspaceID, $classID){
+        $connection = databaseConnect();
+
+        $query = "DELETE FROM hoursManagement WHERE WorkspaceID='$workspaceID' AND ClassID='$classID' LIMIT 1";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            if(mysqli_affected_rows($connection) == 1){
+                return true;
+            }
+        }else{
+            throw new Exception("DELHRS: " . mysqli_error($connection));
         }
         return false;
     }
@@ -841,7 +1026,6 @@ class SummaryFunctions{
      */
     function EditSummary($isEdit, $userID, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID = null){
         $connection = databaseConnect();
-        $summaryFunctions = new SummaryFunctions();
 
         if($isEdit){
             $query = "UPDATE summaries SET date='$date', summaryNumber='$summaryNumber', workspace='$workspaceID', contents='$bodyText' WHERE id='$summaryID'";
@@ -852,11 +1036,7 @@ class SummaryFunctions{
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
-                if($isEdit){
-                    return $summaryID;
-                }else{
-                    return $summaryFunctions->FindSummary($userID, $summaryNumber, $workspaceID);
-                }
+                return mysqli_insert_id($connection);
             }else{
                 if($isEdit){
                     return $summaryID;

@@ -981,6 +981,7 @@ class SummaryFunctions{
                     $list[$i]['summaryNumber'] = $row['summaryNumber'];
                     $list[$i]['workspaceID'] = $row['workspace'];
                     $list[$i]['bodyText'] = $row['contents'];
+                    $list[$i]['dayHours'] = $row['dayHours'];
                     $fetchFiles = "SELECT * FROM attachmentMapping WHERE summaryID='$rowID'";
                     $runFetch = mysqli_query($connection, $fetchFiles);
                     if($runFetch){
@@ -1021,22 +1022,28 @@ class SummaryFunctions{
      * @param int $workspaceID ID of the workspace this summary makes part of
      * @param string $date Summary date (must be yyyy-mm-dd)
      * @param string $bodyText The text of this summary
+     * @param int $dayHours The amount of hours to be summarized
      * @param int|null $summaryID Database row where the summary is stored (only used if $isEdit is true)
      * @return mixed Returns the database row ID if success, bool false otherwise
      */
-    function EditSummary($isEdit, $userID, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID = null){
+    function EditSummary($isEdit, $userID, $summaryNumber, $workspaceID, $date, $bodyText, $dayHours, $summaryID = null){
         $connection = databaseConnect();
+        $summaryFunctions = new SummaryFunctions();
 
         if($isEdit){
-            $query = "UPDATE summaries SET date='$date', summaryNumber='$summaryNumber', workspace='$workspaceID', contents='$bodyText' WHERE id='$summaryID'";
+            $query = "UPDATE summaries SET date='$date', summaryNumber='$summaryNumber', workspace='$workspaceID', contents='$bodyText', dayHours='$dayHours' WHERE id='$summaryID'";
         }else{
-            $query = "INSERT INTO summaries (userid, date, summaryNumber, workspace, contents) VALUES ('$userID', '$date', '$summaryNumber', '$workspaceID', '$bodyText')";
+            $query = "INSERT INTO summaries (userid, date, summaryNumber, workspace, contents, dayHours) VALUES ('$userID', '$date', '$summaryNumber', '$workspaceID', '$bodyText', '$dayHours')";
         }
 
         $run = mysqli_query($connection, $query);
         if($run){
             if(mysqli_affected_rows($connection) == 1){
-                return mysqli_insert_id($connection);
+                if($isEdit){
+                    return $summaryID;
+                }else{
+                    return $summaryFunctions->FindSummary($userID, $summaryNumber, $workspaceID);
+                }
             }else{
                 if($isEdit){
                     return $summaryID;

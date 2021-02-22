@@ -13,7 +13,7 @@ require_once("./functions.php");
 require __DIR__ . '/../vendor/autoload.php';
 
 $app = AppFactory::create();
-$app->setBasePath('/summaries/api/v5');
+$app->setBasePath('/summaries/api/v6');
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 
@@ -645,7 +645,7 @@ $app->get('/user/{userID}/summary/{summaryID}', function(Request $request, Respo
                     $query = mysqli_query($connection, "SELECT * FROM summaries WHERE userid=$requestedUser AND id=$summaryID LIMIT 1");
                     if($query){
                         if(mysqli_num_rows($query) == 1){
-                            $contents = "";
+                            $contents = [];
                             while($row = mysqli_fetch_array($query, MYSQLI_ASSOC)){
                                 $contents['summaryID'] = $row['id'];
                                 $contents['userID'] = $row['userid'];
@@ -653,6 +653,7 @@ $app->get('/user/{userID}/summary/{summaryID}', function(Request $request, Respo
                                 $contents['summaryNumber'] = $row['summaryNumber'];
                                 $contents['workspace'] = $row['workspace'];
                                 $contents['contents'] = $row['contents'];
+                                $contents['dayHours'] = $row['dayHours'];
                             }
                             $files = $filesFunctions->GetFilesList($contents['dbRow']);
                             if($files){
@@ -924,7 +925,7 @@ $app->post('/user', function(Request $request, Response $response, array $args){
 /**
  * Create a New Summary
  * Method -> POST
- * Parameters -> userID, workspaceID, summaryID, date, bodyText
+ * Parameters -> userID, workspaceID, summaryID, date, bodyText, dayHours
  */
 
 $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $request, Response $response, array $args){
@@ -949,29 +950,36 @@ $app->post('/user/{userID}/workspace/{workspaceID}/summary', function(Request $r
                             $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
                             if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
                                 $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
-                                $summaryID = $summaryFunctions->EditSummary(false, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText);
-                                if($summaryID){
-                                    if(isset($params['filesToAdopt'])){
-                                        $files = base64_decode($_POST['filesToAdopt']);
-                                        $filesToAdopt = json_decode($files);
-
-                                        foreach ($filesToAdopt as $id) {
-                                            $adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'");
-                                            if(!$adopt){
-                                                $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
-                                                $response->getBody()->write(json_encode($customResponse));
-                                                return $response->withStatus(500);
+                                $dayHours = mysqli_real_escape_string($connection, $params['dayHours']);
+                                if(is_numeric($dayHours) && ($dayHours >= 0 || $dayHours <= 24)){
+                                    $summaryID = $summaryFunctions->EditSummary(false, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText, $dayHours);
+                                    if($summaryID){
+                                        if(isset($params['filesToAdopt'])){
+                                            $files = base64_decode($_POST['filesToAdopt']);
+                                            $filesToAdopt = json_decode($files);
+    
+                                            foreach ($filesToAdopt as $id) {
+                                                $adopt = mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'");
+                                                if(!$adopt){
+                                                    $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                    $response->getBody()->write(json_encode($customResponse));
+                                                    return $response->withStatus(500);
+                                                }
                                             }
                                         }
+                                        $customResponse['status'] = true;
+                                        $customResponse['rowID'] = $summaryID;
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(200);
+                                    }else{
+                                        $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                        $response->getBody()->write(json_encode($customResponse));
+                                        return $response->withStatus(500);
                                     }
-                                    $customResponse['status'] = true;
-                                    $customResponse['rowID'] = $summaryID;
-                                    $response->getBody()->write(json_encode($customResponse));
-                                    return $response->withStatus(200);
                                 }else{
-                                    $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                    $customResponse['errors'] = "Invalid Hours";
                                     $response->getBody()->write(json_encode($customResponse));
-                                    return $response->withStatus(500);
+                                    return $response->withStatus(400);
                                 }
                             }else{
                                 $customResponse['errors'] = "Invalid Date Syntax";
@@ -1266,7 +1274,7 @@ $app->put('/user/{userID}/changepassword/reset', function(Request $request, Resp
 /**
  * Edit a Specific Summary
  * Method -> PUT
- * Parameters -> userID, summaryID, workspaceID, summaryNumber, date, contents, filesToAdopt, filesToRemove
+ * Parameters -> userID, summaryID, workspaceID, summaryNumber, date, contents, dayHours, filesToAdopt, filesToRemove
  */
 
 $app->put('/user/{userID}/summary/{summaryID}', function(Request $request, Response $response, array $args){
@@ -1294,74 +1302,81 @@ $app->put('/user/{userID}/summary/{summaryID}', function(Request $request, Respo
                                 $date = mysqli_real_escape_string($connection, base64_decode($params['date']));
                                 if(preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date)){
                                     $bodyText = mysqli_real_escape_string($connection, base64_decode($params['bodyText']));
-                                    if($summaryFunctions->EditSummary(true, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText, $summaryID)){
-                                        if(isset($params['filesToAdopt']) || isset($params['filesToRemove'])){
-
-                                            if(isset($params['filesToAdopt'])){
-                                                $files = base64_decode($params['filesToAdopt']);
-                                                $filesToAdopt = json_decode($files);
+                                    $dayHours = mysqli_real_escape_string($connection, $params['dayHours']);
+                                    if(is_numeric($dayHours) && ($dayHours >= 0 || $dayHours <= 24)){
+                                        if($summaryFunctions->EditSummary(true, $requestedUser, $summaryNumber, $workspaceID, $date, $bodyText, $dayHours, $summaryID)){
+                                            if(isset($params['filesToAdopt']) || isset($params['filesToRemove'])){
     
-                                                foreach ($filesToAdopt as $id) {
-                                                    if(!mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'")){
-                                                        $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                if(isset($params['filesToAdopt'])){
+                                                    $files = base64_decode($params['filesToAdopt']);
+                                                    $filesToAdopt = json_decode($files);
+        
+                                                    foreach ($filesToAdopt as $id) {
+                                                        if(!mysqli_query($connection, "UPDATE attachmentMapping SET summaryID='$summaryID' WHERE id='$id'")){
+                                                            $customResponse['errors'] = "ADPFI: " . mysqli_error($connection);
+                                                            $response->getBody()->write(json_encode($customResponse));
+                                                            return $response->withStatus(500);
+                                                        }
+                                                    }
+                                                }
+        
+                                                if(isset($params['filesToRemove'])){
+                                                    $files = base64_decode($params['filesToRemove']);
+                                                    $filesToRemove = json_decode($files);
+        
+                                                    $getAttachmentsQuery = "SELECT * FROM attachmentMapping WHERE summaryID='$summaryID'";
+                                                    $getAttachments = mysqli_query($connection, $getAttachmentsQuery);
+                                                    if($getAttachments){
+                                                        if(mysqli_num_rows($getAttachments) > 0){
+                                                            while($row = mysqli_fetch_array($getAttachments, MYSQLI_ASSOC)){
+                                                                $map[$row['filename']] = $row['path'];
+                                                            }
+        
+                                                            foreach ($filesToRemove as $file) {
+                                                                $fileToQuery = mysqli_real_escape_string($connection, $file);
+                                                                $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
+                                                                if($check){
+                                                                    if(isset($map[$file])){
+                                                                        if(!unlink(ROOT_FOLDER . "/" . $map[$file])){
+                                                                            $customResponse['errors'] = "Error while trying to delete file " . $map[$file];
+                                                                            $response->getBody()->write(json_encode($customResponse));
+                                                                            return $response->withStatus(500);
+                                                                        }
+                                                                    }else{
+                                                                        $customResponse['errors'] = "Not set.";
+                                                                        $response->getBody()->write(json_encode($customResponse));
+                                                                        return $response->withStatus(500);
+                                                                    }
+                                                                }else{
+                                                                    $customResponse['errors'] = "DELFI: " . mysqli_error($connection);
+                                                                    $response->getBody()->write(json_encode($customResponse));
+                                                                    return $response->withStatus(500);
+                                                                }
+                                                            }
+                                                        }else{
+                                                            $customResponse['errors'] = "No matches found.";
+                                                            $response->getBody()->write(json_encode($customResponse));
+                                                            return $response->withStatus(404);
+                                                        }
+                                                    }else{
+                                                        $customResponse['errors'] = "GETAT: " . mysqli_error($connection);
                                                         $response->getBody()->write(json_encode($customResponse));
                                                         return $response->withStatus(500);
                                                     }
                                                 }
                                             }
-    
-                                            if(isset($params['filesToRemove'])){
-                                                $files = base64_decode($params['filesToRemove']);
-                                                $filesToRemove = json_decode($files);
-    
-                                                $getAttachmentsQuery = "SELECT * FROM attachmentMapping WHERE summaryID='$summaryID'";
-                                                $getAttachments = mysqli_query($connection, $getAttachmentsQuery);
-                                                if($getAttachments){
-                                                    if(mysqli_num_rows($getAttachments) > 0){
-                                                        while($row = mysqli_fetch_array($getAttachments, MYSQLI_ASSOC)){
-                                                            $map[$row['filename']] = $row['path'];
-                                                        }
-    
-                                                        foreach ($filesToRemove as $file) {
-                                                            $fileToQuery = mysqli_real_escape_string($connection, $file);
-                                                            $check = mysqli_query($connection, "DELETE FROM attachmentMapping WHERE filename='$fileToQuery' AND summaryID='$summaryID'");
-                                                            if($check){
-                                                                if(isset($map[$file])){
-                                                                    if(!unlink(ROOT_FOLDER . "/" . $map[$file])){
-                                                                        $customResponse['errors'] = "Error while trying to delete file " . $map[$file];
-                                                                        $response->getBody()->write(json_encode($customResponse));
-                                                                        return $response->withStatus(500);
-                                                                    }
-                                                                }else{
-                                                                    $customResponse['errors'] = "Not set.";
-                                                                    $response->getBody()->write(json_encode($customResponse));
-                                                                    return $response->withStatus(500);
-                                                                }
-                                                            }else{
-                                                                $customResponse['errors'] = "DELFI: " . mysqli_error($connection);
-                                                                $response->getBody()->write(json_encode($customResponse));
-                                                                return $response->withStatus(500);
-                                                            }
-                                                        }
-                                                    }else{
-                                                        $customResponse['errors'] = "No matches found.";
-                                                        $response->getBody()->write(json_encode($customResponse));
-                                                        return $response->withStatus(404);
-                                                    }
-                                                }else{
-                                                    $customResponse['errors'] = "GETAT: " . mysqli_error($connection);
-                                                    $response->getBody()->write(json_encode($customResponse));
-                                                    return $response->withStatus(500);
-                                                }
-                                            }
+                                            $customResponse['status'] = true;
+                                            $response->getBody()->write(json_encode($customResponse));
+                                            return $response->withStatus(200);
+                                        }else{
+                                            $customResponse['errors'] = "An error occurred while trying to edit the summary";
+                                            $response->getBody()->write(json_encode($customResponse));
+                                            return $response->withStatus(500);
                                         }
-                                        $customResponse['status'] = true;
-                                        $response->getBody()->write(json_encode($customResponse));
-                                        return $response->withStatus(200);
                                     }else{
-                                        $customResponse['errors'] = "An error occurred while trying to create the summary";
+                                        $customResponse['errors'] = "Invalid Hours";
                                         $response->getBody()->write(json_encode($customResponse));
-                                        return $response->withStatus(500);
+                                        return $response->withStatus(400);
                                     }
                                 }else{
                                     $customResponse['errors'] = "Invalid Date Syntax";
@@ -1609,9 +1624,68 @@ $app->get('/workspace/{workspaceID}', function(Request $request, Response $respo
 });
 
 /**
+ * Get summarized hours from a workspace
+ * Method -> GET
+ * Parameters -> workspaceID
+ */
+$app->get('/workspace/{workspaceID}/summarizedHours', function(Request $request, Response $response, array $args){
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
+    $workspaceFunctions = new WorkspaceFunctions();
+
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            if($userFunctions->isUserAdmin($userID)){
+                $workspaceID = mysqli_real_escape_string($connection, $args['workspaceID']);
+                $querySummaries = mysqli_query($connection, "SELECT summaries.userid, (SELECT users.classID FROM users WHERE users.id=summaries.userid) AS classID, SUM(summaries.dayHours) AS summarizedHours FROM summaries WHERE summaries.workspace='$workspaceID' GROUP BY summaries.userid");
+                if($querySummaries){
+                    if(mysqli_num_rows($querySummaries) > 0){
+                        $i = 0;
+                        $out = [];
+                        while($row = mysqli_fetch_array($querySummaries, MYSQLI_ASSOC)){
+                            $out[$i]['userID'] = $row['userid'];
+                            $out[$i]['classID'] = $row['classID'];
+                            $out[$i]['summarizedHours'] = $row['summarizedHours'];
+                            $i++;
+                        }
+                        $customResponse['status'] = true;
+                        $customResponse['contents'] = $out;
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(200);
+                    }else{
+                        $customResponse['errors'] = "No summaries found";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(404);
+                    }
+                }else{
+                    $customResponse['errors'] = "An error occurred while trying to fetch summaries";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(500);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
+});
+
+/**
  * Create a New Workspace
  * Method -> POST
- * Parameters -> name, readMode, writeMode
+ * Parameters -> name, readMode, writeMode, JSONString
  */
 
 $app->post('/workspace', function(Request $request, Response $response, array $args){
@@ -1633,7 +1707,7 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
                 $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
                 $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
 
-                if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode)){
+                if($workspaceFunctions->NewWorkspace($name, $readMode, $writeMode, base64_decode($params['JSONString']))){
                     $customResponse['status'] = true;
                     $response->getBody()->write(json_encode($customResponse));
                     return $response->withStatus(200);
@@ -1662,7 +1736,7 @@ $app->post('/workspace', function(Request $request, Response $response, array $a
 /**
  * Edit Workspace
  * Method -> PUT
- * Parameters -> workspaceID, name, readMode, writeMode
+ * Parameters -> workspaceID, name, readMode, writeMode, JSONString
  */
 
 $app->put('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
@@ -1685,7 +1759,8 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
                     $writeMode = mysqli_real_escape_string($connection, $params['writeMode']);
                     $readMode = ($readMode == 1 || $readMode == "true" || $readMode == "True" ? true : false);
                     $writeMode = ($writeMode == 1 || $writeMode == "true" || $writeMode == "True" ? true : false);
-                    if($workspaceFunctions->EditWorkspace($name, $readMode, $writeMode, $workspaceID)){
+                    
+                    if($workspaceFunctions->EditWorkspace($workspaceID, $name, $readMode, $writeMode, base64_decode($params['JSONString']))){
                         $customResponse['status'] = true;
                         $response->getBody()->write(json_encode($customResponse));
                         return $response->withStatus(200);
@@ -1722,7 +1797,7 @@ $app->put('/workspace/{workspaceID}', function(Request $request, Response $respo
  * Parameters -> worksapceID
  */
 
-$app->delete('workspace/{workspaceID}', function(Request $request, Response $response, array $args){
+$app->delete('/workspace/{workspaceID}', function(Request $request, Response $response, array $args){
     global $customResponse;
     $connection = databaseConnect();
     $authTokens = new AuthTokens();

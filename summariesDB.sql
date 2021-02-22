@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Tempo de geração: 17-Jan-2021 às 13:27
--- Versão do servidor: 8.0.22-0ubuntu0.20.04.3
+-- Tempo de geração: 22-Fev-2021 às 19:23
+-- Versão do servidor: 8.0.23-0ubuntu0.20.04.1
 -- versão do PHP: 7.4.3
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -19,7 +19,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Banco de dados: `summariesDB`
+-- Banco de dados: `summariesDB_dev`
 --
 
 -- --------------------------------------------------------
@@ -70,6 +70,19 @@ INSERT INTO `classesList` (`id`, `name`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Estrutura da tabela `hoursManagement`
+--
+
+CREATE TABLE `hoursManagement` (
+  `id` int NOT NULL,
+  `WorkspaceID` int NOT NULL,
+  `ClassID` int NOT NULL,
+  `TotalHours` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estrutura da tabela `summaries`
 --
 
@@ -79,7 +92,8 @@ CREATE TABLE `summaries` (
   `date` date NOT NULL,
   `summaryNumber` int NOT NULL,
   `workspace` int NOT NULL,
-  `contents` longtext COLLATE utf8mb4_unicode_ci NOT NULL
+  `contents` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `dayHours` int NOT NULL DEFAULT '7'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -103,7 +117,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `user`, `classID`, `password`, `displayName`, `adminControl`, `isDeletionProtected`) VALUES
-(1, 'admin', 0, '$2y$10$iWBNPjIrNjIJw2yXmNd61uHFxzOlttMbYrYMqvW4j4DLN30JbS0ay', 'Administrator', 1, 1);
+(1, 'admin', 0, '$2y$10$ls8SWbj98nsVU4HWbKIJfOMZvryAxmE1J0vVyhfLTc32Xxz7rURD2', 'Administrator', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -123,7 +137,7 @@ CREATE TABLE `workspaces` (
 --
 
 INSERT INTO `workspaces` (`id`, `name`, `read`, `write`) VALUES
-(1, 'Default', 1, 1);
+(1, 'Default', 0, 0);
 
 --
 -- Índices para tabelas despejadas
@@ -145,6 +159,12 @@ ALTER TABLE `attachmentMapping`
 -- Índices para tabela `classesList`
 --
 ALTER TABLE `classesList`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Índices para tabela `hoursManagement`
+--
+ALTER TABLE `hoursManagement`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -186,6 +206,12 @@ ALTER TABLE `attachmentMapping`
 -- AUTO_INCREMENT de tabela `classesList`
 --
 ALTER TABLE `classesList`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT de tabela `hoursManagement`
+--
+ALTER TABLE `hoursManagement`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --

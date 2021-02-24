@@ -655,7 +655,7 @@ $app->get('/user/{userID}/summary/{summaryID}', function(Request $request, Respo
                                 $contents['contents'] = $row['contents'];
                                 $contents['dayHours'] = $row['dayHours'];
                             }
-                            $files = $filesFunctions->GetFilesList($contents['dbRow']);
+                            $files = $filesFunctions->GetFilesList($contents['summaryID']);
                             if($files){
                                 $contents['files'] = $files;
                             }else{

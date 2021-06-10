@@ -876,6 +876,68 @@ class WorkspaceFunctions{
         }
         return false;
     }
+
+    /**
+     * Gets all workspaces associated with the given user
+     * and the number of summarized hours
+     * @param int $userID The user ID
+     * @return
+     */
+    function GetSignedUpWorkspaces($userID){
+        $connection = databaseConnect();
+
+        $query = "
+            SELECT
+                workspaces.id AS workspace_ID,
+                workspaces.name AS workspace_Name,
+                (
+                SELECT
+                    SUM(summaries.dayHours)
+                FROM
+                    `summaries`
+                WHERE
+                    summaries.workspace = workspaces.id AND summaries.userid = $userID
+            ) AS hours_Completed
+            FROM
+                `workspaces`
+            WHERE
+                workspaces.id IN(
+                    (
+                    SELECT
+                        hoursManagement.WorkspaceID
+                    FROM
+                        hoursManagement
+                    WHERE
+                        hoursManagement.ClassID =(
+                        SELECT
+                            users.classID
+                        FROM
+                            users
+                        WHERE
+                            users.id = $userID
+                        )
+                    )
+                )
+        ";
+        $run = mysqli_query($connection, $query);
+        if($run){
+            if(mysqli_num_rows($run) > 0){
+                $i = 0;
+                while($row = mysqli_fetch_array($run, MYSQLI_ASSOC)){
+                    $result[$i]['workspace_ID'] = $row['workspace_ID'];
+                    $result[$i]['workspace_Name'] = $row['workspace_Name'];
+                    $result[$i]['hours_Completed'] = ($row['hours_Completed'] ?? "0");
+                    $i++;
+                }
+                return $result;
+            }else{
+                return null;
+            }
+        }else{
+            throw new Exception("GETUWS: " . mysqli_error($connection));
+        }
+        return false;
+    }
 }
 
 class SummaryFunctions{

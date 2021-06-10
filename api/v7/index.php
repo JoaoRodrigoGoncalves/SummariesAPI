@@ -13,7 +13,7 @@ require_once("./functions.php");
 require __DIR__ . '/../vendor/autoload.php';
 
 $app = AppFactory::create();
-$app->setBasePath('/summaries/api/v6');
+$app->setBasePath('/summaries/api/v7');
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 
@@ -837,6 +837,59 @@ $app->get('/user/{userID}/summary/{summaryID}/files/{file}', function(Request $r
                             $response->getBody()->write(json_encode($customResponse));
                             return $response->withStatus(404);
                         }
+                }else{
+                    $customResponse['errors'] = "User Not Found";
+                    $response->getBody()->write(json_encode($customResponse));
+                    return $response->withStatus(404);
+                }
+            }else{
+                $customResponse['errors'] = "Permission Denied";
+                $response->getBody()->write(json_encode($customResponse));
+                return $response->withStatus(403);
+            }
+        }else{
+            $customResponse['errors'] = "Authentication Failed";
+            $response->getBody()->write(json_encode($customResponse));
+            return $response->withStatus(401);
+        }
+    }else{
+        $customResponse['errors'] = "Authentication Failed";
+        $response->getBody()->write(json_encode($customResponse));
+        return $response->withStatus(401);
+    }
+});
+
+/**
+ * Get the list of workspaces associated with the user and
+ * the total of hours summarized by the user on a by-workspace basis
+ * Method -> GET
+ * Parameters -> userID
+ */
+$app->get('/user/{userID}/signedupWorkspaces', function(Request $request, Response $response, array $args){
+    global $customResponse;
+    $connection = databaseConnect();
+    $authTokens = new AuthTokens();
+    $userFunctions = new UserFunctions();
+    $workspaceFunctions = new WorkspaceFunctions();
+
+    if($request->hasHeader('HTTP-X-API-KEY')){
+        $AccessToken = mysqli_real_escape_string($connection, $request->getHeaderLine('HTTP-X-API-KEY'));
+        $userID = $authTokens->isTokenValid($AccessToken);
+        if($userID){
+            $requestedUser = mysqli_real_escape_string($connection, $args['userID']);
+            if($userFunctions->isUserAdmin($userID) || $requestedUser==$userID){
+                if($userFunctions->UserExists($requestedUser)){
+                    $data = $workspaceFunctions->GetSignedUpWorkspaces($requestedUser);
+                    if($data===false){
+                        $customResponse['errors'] = "Internal Server Error";
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(500);
+                    }else{
+                        $customResponse['status'] = true;
+                        $customResponse['contents'] = $data;
+                        $response->getBody()->write(json_encode($customResponse));
+                        return $response->withStatus(200);
+                    }
                 }else{
                     $customResponse['errors'] = "User Not Found";
                     $response->getBody()->write(json_encode($customResponse));

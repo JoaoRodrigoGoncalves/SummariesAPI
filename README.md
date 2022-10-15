@@ -4,3 +4,4 @@ The WebAPI for the Summaries Software
 
 Summaries is an Open-Source Internship Summary Control software developed as my final project of the Informatic Equipments Management course at [EPTN](https://eptn.pt).
 
+This is the "final" version presented (got some security updates after the presentention. Thx Dependabot)
